@@ -1,4 +1,4 @@
-# Hexo Generator Issues
+# hexo-generator-issues
 
 The Hexo plugin synchronize your posts to GitHub issues.
 
