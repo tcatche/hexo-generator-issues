@@ -1,0 +1,27 @@
+{
+  "name": "hexo-generator-issues",
+  "version": "0.1.0",
+  "description": "publish your hexo posts to github issues.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tcatche/hexo-generator-issues.git"
+  },
+  "keywords": [
+    "hexo",
+    "github",
+    "issue"
+  ],
+  "author": "tcatche",
+  "bugs": {
+    "url": "https://github.com/tcatche/hexo-generator-issues/issues"
+  },
+  "homepage": "https://github.com/tcatche/hexo-generator-issues",
+  "license": "MIT",
+  "dependencies": {
+    "octonode": "^0.7.13"
+  }
+}
