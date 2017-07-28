@@ -2,6 +2,8 @@
 
 The Hexo plugin synchronize your posts to GitHub issues.
 
+The posts and issue are associated with title. If there is no issue has a same title with a post,then will use the post to create issue.Otherwise, if post does not exist, the issue will be close.
+
 ## Install
 npm install hexo-generator-issues --save
 
