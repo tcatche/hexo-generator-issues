@@ -24,16 +24,25 @@ issues:
   repository:  # The issue repository. 'userName/repositoryName'
 ```
 
-- **auth** - The GitHub API calls require authentication. so you need the GitHub app token or user name & password or the API key for authentication. The authentication must have push access to the repository. 
+- **auth** - The GitHub API calls require authentication. so you need the GitHub app token or user name & password or the API key for authentication. The authentication must **have push access** to the repository. 
 - **repository** - The repository puts issues.
+
+In order to better management issue create and update, the post allow to add a new metadata field `issueNumber`.
+
+```
+---
+title: The post's title
+...
+issueNumber: 1
+...
+---
+```
+
+This field be specified to connecting post to existing issues.If the value of this field corresponds to the issue does not exist, this field will be ignored.
 
 ## Note
 
-[dealing-with-abuse-rate-limits](https://developer.github.com/v3/guides/best-practices-for-integrators/#dealing-with-abuse-rate-limits)
-
-> Requests that create content which triggers notifications, such as issues, comments and pull requests, may be further limited and will not include a Retry-After header in the response. Please create this content at a reasonable pace to avoid further limiting.
-
-Create issues to fast you may see the error:
+Create issues too fast you may see the error:
 
 ```
 HTTP/1.1 403 Forbidden
@@ -46,4 +55,15 @@ Connection: close
 }
 ```
 
-So, to aviding the error, the first time publish every posts have a 2s interval, thus is will take very long time. If failed, you can try it later. 
+This is because github limit some of api's rate: [dealing-with-abuse-rate-limits](https://developer.github.com/v3/guides/best-practices-for-integrators/#dealing-with-abuse-rate-limits)
+
+> Requests that create content which triggers notifications, such as issues, comments and pull requests, may be further limited and will not include a Retry-After header in the response. Please create this content at a reasonable pace to avoid further limiting.
+
+So, to aviding the error, the first time publish every posts have a 2s interval, thus it will take very long time. If failed, you can try it later. More details in [https://github.com/octokit/octokit.net/issues/638](https://github.com/octokit/octokit.net/issues/638)
+
+## Update Logs
+**2017-07-31**
+Add support to connecting post to existing issues with add post meta data `issueNumber`.
+
+**2017-07-28**
+Initialize the Repository.
