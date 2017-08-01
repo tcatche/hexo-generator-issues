@@ -1,3 +1,3 @@
 /* global hexo */
 
-hexo.extend.generator.register('issue', require('./lib/generator'));
+hexo.extend.generator.register('issue', require('./dist/generator'));

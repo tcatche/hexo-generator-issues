@@ -21,11 +21,17 @@ issues:
     # Auth from credentials
     username:
     password:
-  repository:  # The issue repository. 'userName/repositoryName'
+  repository:  # The issue repository.  # `userName/repositoryName`
+  sourceLink: 
+    position:  # `top` or `bottom` or `false` 
+    template: '' #  The default template is 
 ```
 
 - **auth** - The GitHub API calls require authentication. so you need the GitHub app token or user name & password or the API key for authentication. The authentication must **have push access** to the repository. 
 - **repository** - The repository puts issues.
+- **sourceLink** - This Option will add post link on the top or bottom of the issue. 
+-   **position** - Link postition. Allow `top` or `bottom`. set other value will not add post link to issue.
+-   **template** - Link style. Allow any markdown syntx, the default value is `**The original: $$url.**`. `$$url` is the link placeholder，will be replaced by markdown format `![post title](post url)`
 
 In order to better management issue create and update, the post allow to add a new metadata field `issueNumber`.
 
@@ -38,7 +44,7 @@ issueNumber: 1
 ---
 ```
 
-This field be specified to connecting post to existing issues.If the value of this field corresponds to the issue does not exist, this field will be ignored.
+This field be specified to connecting post to existing issues.If the value of this field corresponds to the issue does not exist, this field will be ignored. If the value is set `0`, the post will not publish as a issue.
 
 ## Note
 
@@ -62,8 +68,15 @@ This is because github limit some of api's rate: [dealing-with-abuse-rate-limits
 So, to aviding the error, the first time publish every posts have a 2s interval, thus it will take very long time. If failed, you can try it later. More details in [https://github.com/octokit/octokit.net/issues/638](https://github.com/octokit/octokit.net/issues/638)
 
 ## Update Logs
+**2017-08-01**
+
+Add support to ignore post when set `issueNumber` value to `0`.
+Add babel to transform the code.
+
 **2017-07-31**
+
 Add support to connecting post to existing issues with add post meta data `issueNumber`.
 
 **2017-07-28**
+
 Initialize the Repository.
