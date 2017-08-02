@@ -4,8 +4,8 @@ var GitHubApi = require("github");
 
 var option = {
   auth: {
-    type: "token",
-    token: "fb06d4a99bd65ddaa8fbcbd1ac37e33dfaec1b2a",
+    type: "",
+    token: "",
   }, 
   repository: {
     owner: 'tcatche',
