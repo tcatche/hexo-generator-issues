@@ -13,7 +13,8 @@ You should add configuration in `_config.yml`.
 ```yml
 issues:
   auth:
-    # Auth from an access token - https://github.com/settings/
+    # Auth type,More in https://github.com/mikedeboer/node-github#authentication
+    type: 
     token: 
     # Auth from client keys
     id:
@@ -21,17 +22,21 @@ issues:
     # Auth from credentials
     username:
     password:
-  repository:  # The issue repository.  # `userName/repositoryName`
+  repository:  # The issue repository. 
+    owner:  # `userName`
+    repo: # `repositoryName` 
   sourceLink: 
     position:  # `top` or `bottom` or `false` 
     template: '' #  The default template is 
 ```
 
-- **auth** - The GitHub API calls require authentication. so you need the GitHub app token or user name & password or the API key for authentication. The authentication must **have push access** to the repository. 
-- **repository** - The repository puts issues.
+- **auth** - The push need be authenticated. More auth info in [Node-github](https://github.com/mikedeboer/node-github#authentication). And the authentication alse need **have push access** to the repository. 
+- **repository** - The repository puts issues.Need **have push access**. The `repositoryName` must exist in `userName` account.
+  - **owner** - `userName`.
+  - **repo** - `repositoryName` 
 - **sourceLink** - This Option will add post link on the top or bottom of the issue. 
--   **position** - Link postition. Allow `top` or `bottom`. set other value will not add post link to issue.
--   **template** - Link style. Allow any markdown syntx, the default value is `**The original: $$url.**`. `$$url` is the link placeholder，will be replaced by markdown format `![post title](post url)`
+  - **position** - Link postition. Allow `top` or `bottom`. set other value will not add post link to issue.
+  - **template** - Link style. Allow any markdown syntx, the default value is `**The original: $$url.**`. `$$url` is the link placeholder，will be replaced by markdown format `![post title](post url)`
 
 In order to better management issue create and update, the post allow to add a new metadata field `issueNumber`.
 
@@ -45,6 +50,24 @@ issueNumber: 1
 ```
 
 This field be specified to connecting post to existing issues.If the value of this field corresponds to the issue does not exist, this field will be ignored. If the value is set `0`, the post will not publish as a issue.
+
+## Test
+Before test, you should add option about authentication and test repository in `test/options.js` files.The authentication must has access in creating and delete repository.  
+
+```js
+var option = {
+  auth: {
+    // ..authInfo, details in https://github.com/mikedeboer/node-github#authentication
+  }, 
+  repository: {
+    owner: 'owner',
+    repo: '__hexo-igenerator-issue-test'
+  }
+};
+```
+
+Then run `npm run test.`  
+
 
 ## Note
 
@@ -70,7 +93,16 @@ So, to aviding the error, the first time publish every posts have a 2s interval,
 ## Update Logs
 **2017-08-01**
 
+Add mocha test case.
+
+Change github lib.
+
+Fix sometimes will duplicated publish problem.
+
+**2017-08-01**
+
 Add support to ignore post when set `issueNumber` value to `0`.
+
 Add babel to transform the code.
 
 **2017-07-31**
@@ -80,3 +112,6 @@ Add support to connecting post to existing issues with add post meta data `issue
 **2017-07-28**
 
 Initialize the Repository.
+
+## License
+[MIT](./LICENSE)
