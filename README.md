@@ -91,7 +91,7 @@ This is because github limit some of api's rate: [dealing-with-abuse-rate-limits
 So, to aviding the error, the first time publish every posts have a 2s interval, thus it will take very long time. If failed, you can try it later. More details in [https://github.com/octokit/octokit.net/issues/638](https://github.com/octokit/octokit.net/issues/638)
 
 ## Update Logs
-**2017-08-01**
+**2017-08-02**
 
 Add mocha test case.
 
