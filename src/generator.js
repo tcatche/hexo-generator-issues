@@ -200,7 +200,7 @@ function addTask(issue, number) {
         ...option.repository, 
       }, (err, res) => {
         if (err) {
-          log.e('Update issue [url: /%s/%s/issues/%s] [title: %s] failed: %s', option.repository.owner, option.repository.repo, number, issue.title || res.data.title, err);
+          log.e('Update issue [url: /%s/%s/issues/%s] [title: %s] failed: %s', option.repository.owner, option.repository.repo, number, issue.title, err);
         } else {
           log.i('Success update issue [url: /%s/%s/issues/%s] [title: %s]', option.repository.owner, option.repository.repo, number, issue.title || res.data.title);
         }

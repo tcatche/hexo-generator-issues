@@ -5,8 +5,8 @@ var _extends = Object.assign || function (target) { for (var i = 1; i < argument
 var GitHubApi = require("github");
 var github = void 0;
 
-var createQueue = [];
-var updateQueue = [];
+var createQueue = void 0;
+var updateQueue = void 0;
 
 var client = void 0;
 var repo = void 0;
@@ -21,7 +21,7 @@ var ISSUE_META_KEY = 'issueNumber';
 var PER_PAGE_ISSUE = 100;
 var TEMPLATE_DEFAULT = '**The original: $$url.**';
 
-module.exports = function (locals) {
+module.exports = function (locals, finalCB) {
   var hexo = this;
   var config = hexo.config;
   log = hexo.log;
@@ -39,11 +39,9 @@ module.exports = function (locals) {
     debug: false,
     protocol: "https",
     host: "api.github.com", // should be api.github.com for GitHub
-    pathPrefix: "", // for some GHEs; none for GitHub
     headers: {
       "user-agent": "hexo-igenerator-issue" // GitHub is happy with a unique user agent
     },
-    followRedirects: false, // default: true; there's currently an issue with non-get redirects, so allow ability to disable follow-redirects
     timeout: 5000
   });
   var auth = issuesOption.auth;
@@ -55,20 +53,18 @@ module.exports = function (locals) {
     return;
   }
 
-  run(locals);
+  createQueue = [];
+  updateQueue = [];
 
-  return {
-    path: null,
-    data: ''
-  };
+  run(locals, finalCB);
 };
 
-function run(locals) {
+function run(locals, finalCB) {
   var posts = getPosts(locals);
   getIssues(function (issues) {
     setTask(posts, issues);
     log.i('Your posts will push to %s/%s issues...', option.repository.owner, option.repository.repo);
-    runTask();
+    runTask(finalCB);
   });
 }
 
@@ -83,20 +79,12 @@ function getPosts(locals) {
 function getIssues(cb) {
   var issues = [];
   var page = 1;
-  console.log('getIssues');
   var _getIssues = function _getIssues() {
-    var _arguments = arguments;
-
-    console.log('getIssues1');
     github.issues.getForRepo(_extends({
       page: page,
       per_page: PER_PAGE_ISSUE,
       state: 'all'
     }, option.repository), function (err, _issues) {
-      console.log('_issues234234');
-      console.log(_arguments);
-      console.log(err);
-      console.log(_issues);
       if (!err) {
         if (_issues && _issues.data && _issues.data.length) {
           issues = issues.concat(_issues.data.map(function (item) {
@@ -111,17 +99,14 @@ function getIssues(cb) {
           cb && cb(issues);
         }
       } else {
-        console.log('else');
         log.e('Can not get issues %s', err);
       }
     });
-    console.log('getIssues2');
   };
   return _getIssues();
 }
 
 function setTask(posts, issues) {
-  console.log('setTask');
   var _iteratorNormalCompletion = true;
   var _didIteratorError = false;
   var _iteratorError = undefined;
@@ -155,17 +140,40 @@ function setTask(posts, issues) {
 
       // update issue use ISSUE_META_KEY == issue.number
       if (!isNaN(issueNumber) && issueNumber > 0 && issueNumber <= issues.length) {
-        issues[issueNumber - 1]._isExist = true;
-        addTask(_issue, issueNumber);
-      } else {
         var issue = issues.find(function (item) {
+          return !item._isExist && item.number == issueNumber;
+        });
+
+        // update issue with issue.number == issueNumber.
+        if (issue) {
+          issue._isExist = true;
+          addTask(_issue, issue.number);
+
+          // The issueNumber has been used.update issue with issue.title == post.title.
+        } else {
+          issue = issues.find(function (item) {
+            return !item._isExist && item.title == post.title;
+          });
+
+          // update issue with issue.title == post.title.
+          if (issue) {
+            issue._isExist = true;
+            addTask(_issue, issue.number);
+
+            // create issue with post.
+          } else {
+            addTask(_issue);
+          }
+        }
+      } else {
+        var _issue2 = issues.find(function (item) {
           return !item._isExist && item.title == post.title;
         });
 
         // update issue with issue.title == post.title.
-        if (issue) {
-          issue._isExist = true;
-          addTask(_issue, issue.number);
+        if (_issue2) {
+          _issue2._isExist = true;
+          addTask(_issue, _issue2.number);
 
           // create issue with post.
         } else {
@@ -203,20 +211,26 @@ function setTask(posts, issues) {
   });
 }
 
-function runTask() {
+function runTask(finalCB) {
   var currTaskIndex = 0;
+
   // Update issues can directly publish.
-  updateQueue.forEach(function (func) {
-    return func();
+  updateQueue.forEach(function (func, index) {
+    if (createQueue.length == 0 && index === updateQueue.length - 1) {
+      func(finalCB);
+    } else {
+      func();
+    }
   });
 
+  // Create issues rate be limited, so create one fo the issues per 2s.
   var cb = function cb() {
     currTaskIndex++;
     currTaskIndex < createQueue.length && setTimeout(function () {
       return createQueue[currTaskIndex](cb);
     }, CREATE_ISSUE_INTERVAL);
+    currTaskIndex >= createQueue.length && finalCB && finalCB();
   };
-  // Create issues rate be limited, so create one fo the issues per 2s.
   createQueue.length > 0 && createQueue[currTaskIndex](cb);
 }
 
@@ -227,7 +241,7 @@ function addTask(issue, number) {
         number: number
       }, issue, option.repository), function (err, res) {
         if (err) {
-          log.e('Update issue [url: /%s/%s/issues/%s] [title: %s] failed: %s', option.repository.owner, option.repository.repo, number, issue.title || res.data.title, err);
+          log.e('Update issue [url: /%s/%s/issues/%s] [title: %s] failed: %s', option.repository.owner, option.repository.repo, number, issue.title, err);
         } else {
           log.i('Success update issue [url: /%s/%s/issues/%s] [title: %s]', option.repository.owner, option.repository.repo, number, issue.title || res.data.title);
         }
@@ -238,7 +252,6 @@ function addTask(issue, number) {
   } else {
     var _task2 = function _task2(cb) {
       github.issues.create(_extends({}, option.repository, issue), function (err, res) {
-        console.log(res);
         if (err) {
           log.e('Create issue [title: %s] failed: %s', issue.title, err);
         } else {
