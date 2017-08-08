@@ -1,20 +1,28 @@
 # hexo-generator-issues
 
-The Hexo plugin synchronize your posts to GitHub issues.
+The Hexo plugin publish your posts to GitHub issues.  
 
-The posts and issue are associated with title. If there is no issue has a same title with a post,then will use the post to create issue.Otherwise, if post does not exist, the issue will be close.
+The plugin work on generate stage.When run `hexo g` or `hexo generate`, the issue will be published.  
+
+The posts and issue are associated with `post.title` to `issue.title`. If the post has not be published -- there is no issue has a same title with a post -- then will cerate a new issue using `post.title`, `post.tag` and `post._content`(post's markdown source content).If change the post content, the first issue has the same title will update. Otherwise, if a post be delete or reset title, the issue will be closed.  
+
+And you can use metadata `issueNumber` to point a post to a issue.
 
 ## Install
+
+```
 npm install hexo-generator-issues --save
+```
 
 ## Options
-You should add configuration in `_config.yml`.
+You should add this configuration in `_config.yml`.
 
 ```yml
 issues:
   auth:
     # Auth type,More in https://github.com/mikedeboer/node-github#authentication
     type: 
+    # Auth from token
     token: 
     # Auth from client keys
     id:
@@ -30,7 +38,7 @@ issues:
     template: '' #  The default template is 
 ```
 
-- **auth** - The push need be authenticated. More auth info in [Node-github](https://github.com/mikedeboer/node-github#authentication). And the authentication alse need **have push access** to the repository. 
+- **auth** - Push issue need be authenticated. More auth info in [Node-github](https://github.com/mikedeboer/node-github#authentication). And the authentication alse need **have push access** to the repository. 
 - **repository** - The repository puts issues.Need **have push access**. The `repositoryName` must exist in `userName` account.
   - **owner** - `userName`.
   - **repo** - `repositoryName` 
@@ -49,7 +57,7 @@ issueNumber: 1
 ---
 ```
 
-This field be specified to connecting post to existing issues.If the value of this field corresponds to the issue does not exist, this field will be ignored. If the value is set `0`, the post will not publish as a issue.
+This field be specified to connecting post to existing issue.If the value of this field corresponds to the issue does not exist, this field will be ignored. If the value is set `0`, the post will not publish as a issue.
 
 ## Test
 Before test, you should add option about authentication and test repository in `test/options.js` files.The authentication must has access in creating and delete repository.  
@@ -60,14 +68,13 @@ var option = {
     // ..authInfo, details in https://github.com/mikedeboer/node-github#authentication
   }, 
   repository: {
-    owner: 'owner',
+    owner: 'owner', // userName
     repo: '__hexo-igenerator-issue-test'
   }
 };
 ```
 
 Then run `npm run test.`  
-
 
 ## Note
 
