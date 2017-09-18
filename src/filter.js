@@ -5,7 +5,7 @@ module.exports = function (post) {
   const ISSUE_META_KEY = 'issueNumber';
 
   let issueNumber = post[ISSUE_META_KEY];
-  if (issueNumber == 0 || !post.title) {
+  if (!issueNumber || !post.title) {
     return post;
   }
 
@@ -25,7 +25,6 @@ module.exports = function (post) {
 
   let body = post.content;
   let issueLink = `https://github.com/${option.repository.owner}/${option.repository.repo}/issues/${issueNumber}`;
-  console.log(issueLink)
   if (option.position && option.position == 'top') {
     let url = option.template.replace(/\$\$url/g, `[${post.title}](${issueLink})`);
     body = `${url}\n\n${body}`;
