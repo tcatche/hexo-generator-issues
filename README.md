@@ -34,8 +34,11 @@ issues:
     owner:  # `userName`
     repo: # `repositoryName` 
   sourceLink: 
-    position:  # `top` or `bottom` or `false` 
-    template: '' #  The default template is 
+    position: 'top' # `top` or `bottom` or `false` 
+    template: 'The original: $$url.**`. `$$url' # The default template is 'The original: $$url.**`. `$$url'
+  issueLink: # add issue link on the top or bottom of content.
+    position: 'bottom' # `top` or `bottom` or other as `false`
+    template: '**Have any question? go to github issue to discuss: $$url.**' # `$$url` is the link placeholder，is using markdown format `![post title](post url)`
 ```
 
 - **auth** - Push issue need be authenticated. More auth info in [Node-github](https://github.com/mikedeboer/node-github#authentication). And the authentication alse need **have push access** to the repository. 
@@ -45,6 +48,9 @@ issues:
 - **sourceLink** - This Option will add post link on the top or bottom of the issue. 
   - **position** - Link postition. Allow `top` or `bottom`. set other value will not add post link to issue.
   - **template** - Link style. Allow any markdown syntx, the default value is `**The original: $$url.**`. `$$url` is the link placeholder，will be replaced by markdown format `![post title](post url)`
+- **issueLink**  - This Option will add issue link on the top or bottom of the issue.it only work when a post has a `issueNumber`.Note it will not check the issue is exist or not.
+  - **position** - Link postition. Allow `top` or `bottom`.
+  - **template** - Link style. Allow any markdown syntx, the default value is `**Have any question? go to github issue to discuss: $$url.**` is the link placeholder，will be replaced by markdown format `![post title](issue url)`
 
 In order to better management issue create and update, the post allow to add a new metadata field `issueNumber`.
 
@@ -98,6 +104,10 @@ This is because github limit some of api's rate: [dealing-with-abuse-rate-limits
 So, to aviding the error, the first time publish every posts have a 2s interval, thus it will take very long time. If failed, you can try it later. More details in [https://github.com/octokit/octokit.net/issues/638](https://github.com/octokit/octokit.net/issues/638)
 
 ## Update Logs
+**2017-09-18**
+
+Add issue link support.
+
 **2017-08-02**
 
 Add mocha test case.
