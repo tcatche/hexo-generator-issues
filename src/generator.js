@@ -70,9 +70,7 @@ function run(locals, finalCB) {
 }
 
 function getPosts(locals) {
-  let posts = [].concat(locals.posts, locals.pages)
-    .sort((a, b) => a.date - b.date);
-
+  let posts = locals.posts.data.sort((a, b) => a.date - b.date);
   return posts;
 }
 
@@ -106,7 +104,8 @@ function getIssues(cb) {
 }
 
 function setTask(posts, issues) {
-  for (let post of posts) {
+  for (let index in posts) {
+    let post = posts[index];
     let issueNumber = post[ISSUE_META_KEY];
     if (issueNumber == 0 || !post.title) {
       continue;
@@ -137,7 +136,7 @@ function setTask(posts, issues) {
         issue._isExist = true;
         addTask(_issue, issue.number);
 
-      // The issueNumber has been used.update issue with issue.title == post.title.
+      // The issueNumber has been used. update issue with issue.title == post.title.
       } else {
         issue = issues.find(item => !item._isExist && item.title == post.title);
 

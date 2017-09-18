@@ -69,10 +69,9 @@ function run(locals, finalCB) {
 }
 
 function getPosts(locals) {
-  var posts = [].concat(locals.posts, locals.pages).sort(function (a, b) {
+  var posts = locals.posts.data.sort(function (a, b) {
     return a.date - b.date;
   });
-
   return posts;
 }
 
@@ -107,103 +106,82 @@ function getIssues(cb) {
 }
 
 function setTask(posts, issues) {
-  var _iteratorNormalCompletion = true;
-  var _didIteratorError = false;
-  var _iteratorError = undefined;
+  var _loop = function _loop(index) {
+    var post = posts[index];
+    var issueNumber = post[ISSUE_META_KEY];
+    if (issueNumber == 0 || !post.title) {
+      return "continue";
+    }
 
-  try {
-    var _loop = function _loop() {
-      var post = _step.value;
+    // Add link to point the source post.
+    var body = post._content;
+    if (option.position && option.position == 'top') {
+      var url = option.template.replace(/\$\$url/g, "[" + post.title + "](" + post.permalink + ")");
+      body = url + "\n\n" + body;
+    } else if (option.position && option.position == 'bottom') {
+      var _url = option.template.replace(/\$\$url/g, "[" + post.title + "](" + post.permalink + ")");
+      body = body + "\n\n" + _url;
+    }
+    var _issue = {
+      title: post.title,
+      body: body,
+      labels: post.tags.map(function (item) {
+        return item.name;
+      }),
+      state: ISSUE_EXIST_STATE
+    };
 
-      var issueNumber = post[ISSUE_META_KEY];
-      if (issueNumber == 0 || !post.title) {
-        return "continue";
-      }
+    // update issue use ISSUE_META_KEY == issue.number
+    if (!isNaN(issueNumber) && issueNumber > 0 && issueNumber <= issues.length) {
+      var issue = issues.find(function (item) {
+        return !item._isExist && item.number == issueNumber;
+      });
 
-      // Add link to point the source post.
-      var body = post._content;
-      if (option.position && option.position == 'top') {
-        var url = option.template.replace(/\$\$url/g, "[" + post.title + "](" + post.permalink + ")");
-        body = url + "\n\n" + body;
-      } else if (option.position && option.position == 'bottom') {
-        var _url = option.template.replace(/\$\$url/g, "[" + post.title + "](" + post.permalink + ")");
-        body = body + "\n\n" + _url;
-      }
-      var _issue = {
-        title: post.title,
-        body: body,
-        labels: post.tags.map(function (item) {
-          return item.name;
-        }),
-        state: ISSUE_EXIST_STATE
-      };
+      // update issue with issue.number == issueNumber.
+      if (issue) {
+        issue._isExist = true;
+        addTask(_issue, issue.number);
 
-      // update issue use ISSUE_META_KEY == issue.number
-      if (!isNaN(issueNumber) && issueNumber > 0 && issueNumber <= issues.length) {
-        var issue = issues.find(function (item) {
-          return !item._isExist && item.number == issueNumber;
-        });
-
-        // update issue with issue.number == issueNumber.
-        if (issue) {
-          issue._isExist = true;
-          addTask(_issue, issue.number);
-
-          // The issueNumber has been used.update issue with issue.title == post.title.
-        } else {
-          issue = issues.find(function (item) {
-            return !item._isExist && item.title == post.title;
-          });
-
-          // update issue with issue.title == post.title.
-          if (issue) {
-            issue._isExist = true;
-            addTask(_issue, issue.number);
-
-            // create issue with post.
-          } else {
-            addTask(_issue);
-          }
-        }
+        // The issueNumber has been used. update issue with issue.title == post.title.
       } else {
-        var _issue2 = issues.find(function (item) {
+        issue = issues.find(function (item) {
           return !item._isExist && item.title == post.title;
         });
 
         // update issue with issue.title == post.title.
-        if (_issue2) {
-          _issue2._isExist = true;
-          addTask(_issue, _issue2.number);
+        if (issue) {
+          issue._isExist = true;
+          addTask(_issue, issue.number);
 
           // create issue with post.
         } else {
           addTask(_issue);
         }
       }
-    };
+    } else {
+      var _issue2 = issues.find(function (item) {
+        return !item._isExist && item.title == post.title;
+      });
 
-    for (var _iterator = posts[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
-      var _ret = _loop();
+      // update issue with issue.title == post.title.
+      if (_issue2) {
+        _issue2._isExist = true;
+        addTask(_issue, _issue2.number);
 
-      if (_ret === "continue") continue;
-    }
-
-    // close the issues without having relation to a post.
-  } catch (err) {
-    _didIteratorError = true;
-    _iteratorError = err;
-  } finally {
-    try {
-      if (!_iteratorNormalCompletion && _iterator.return) {
-        _iterator.return();
-      }
-    } finally {
-      if (_didIteratorError) {
-        throw _iteratorError;
+        // create issue with post.
+      } else {
+        addTask(_issue);
       }
     }
+  };
+
+  for (var index in posts) {
+    var _ret = _loop(index);
+
+    if (_ret === "continue") continue;
   }
 
+  // close the issues without having relation to a post.
   issues.filter(function (item) {
     return !item._isExist;
   }).forEach(function (item) {
