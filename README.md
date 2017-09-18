@@ -108,6 +108,8 @@ So, to aviding the error, the first time publish every posts have a 2s interval,
 
 Add issue link support.
 
+Fix publish issue errors.
+
 **2017-08-02**
 
 Add mocha test case.

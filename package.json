@@ -1,6 +1,6 @@
 {
   "name": "hexo-generator-issues",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "description": "publish your hexo posts to github issues.",
   "main": "index.js",
   "scripts": {
