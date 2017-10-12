@@ -1,90 +1,82 @@
 # hexo-generator-issues
 
-The Hexo plugin publish your posts to GitHub issues.  
+[中文文档]('./README-zh.md)
 
-The plugin work on generate stage.When run `hexo g` or `hexo generate`, the issue will be published.  
+This plugin publishes articles to github specified repository, and each article as an issue.
 
-The posts and issue are associated with `post.title` to `issue.title`. If the post has not be published -- there is no issue has a same title with a post -- then will cerate a new issue using `post.title`, `post.tag` and `post._content`(post's markdown source content).If change the post content, the first issue has the same title will update. Otherwise, if a post be delete or reset title, the issue will be closed.  
-
-And you can use metadata `issueNumber` to point a post to a issue.
-
-## Install
+## install
 
 ```
-npm install hexo-generator-issues --save
+npm install hexo-generator-issues@beta --save
 ```
 
-## Options
-You should add this configuration in `_config.yml`.
+## run
+
+The plugin takes effect in the process of executing `generate`, that is, when the` hexo g` or `hexo generate` is executed, the publish progress will execute.
+
+```js
+hexo generate 
+// or
+hexo g
+```
+
+After the release, the plugin will generate a `_issue_generator_record'` file in the blog directory. this file records the contents of the current release, please **do not delete this file**.
+this will ensure the next publish only publish the smallest changes, or the next publish will re-publish all the articles. This will cost a lot of time to publish your articles.
+
+## Configuration
+Add the following content in your configuration file (`_config.yml`):
 
 ```yml
 issues:
+  # github 认证，提交 issue 的时候需要
   auth:
-    # Auth type,More in https://github.com/mikedeboer/node-github#authentication
+    # 认证类型，更多认证信息查看：https://github.com/mikedeboer/node-github#authentication
     type: 
-    # Auth from token
+    # 使用 token 认证需要提供 token
     token: 
-    # Auth from client keys
+    # 使用 client keys 认证需要提供 id 和 secret
     id:
     secret: 
-    # Auth from credentials
+    # 使用 credentials 需要提供 username 和 password
     username:
     password:
-  repository:  # The issue repository. 
-    owner:  # `userName`
-    repo: # `repositoryName` 
+
+  # 提供需要放 issues 的仓库
+  repository:
+    owner:  # github 用户名
+    repo: # 指定用户名下的仓库，仓库必须存在
+
+  # 在 issue 中增加博客原文地址的引用，对应的地址是 post.permalink
   sourceLink: 
-    position: 'top' # `top` or `bottom` or `false` 
-    template: 'The original: $$url.**`. `$$url' # The default template is 'The original: $$url.**`. `$$url'
-  issueLink: # add issue link on the top or bottom of content.
-    position: 'bottom' # `top` or `bottom` or other as `false`
-    template: '**Have any question? go to github issue to discuss: $$url.**' # `$$url` is the link placeholder，is using markdown format `![post title](post url)`
+    position: 'top' # 博客地址信息放置在开头（`top`，默认）或者结束（`bottom`），使用其他值则忽略该项配置
+    # 原文信息的格式，默认为 `The default template is 'The original: $$url.**`， 
+    # 其中 `$$url` 是博客地址的 url 的占位符，对应于 markdown ： `[${post.title}](${post.permalink})`
+    template: 'The original: $$url.**`. `$$url' 
 ```
 
-- **auth** - Push issue need be authenticated. More auth info in [Node-github](https://github.com/mikedeboer/node-github#authentication). And the authentication alse need **have push access** to the repository. 
-- **repository** - The repository puts issues.Need **have push access**. The `repositoryName` must exist in `userName` account.
-  - **owner** - `userName`.
-  - **repo** - `repositoryName` 
-- **sourceLink** - This Option will add post link on the top or bottom of the issue. 
-  - **position** - Link postition. Allow `top` or `bottom`. set other value will not add post link to issue.
-  - **template** - Link style. Allow any markdown syntx, the default value is `**The original: $$url.**`. `$$url` is the link placeholder，will be replaced by markdown format `![post title](post url)`
-- **issueLink**  - This Option will add issue link on the top or bottom of the issue.it only work when a post has a `issueNumber`.Note it will not check the issue is exist or not.
-  - **position** - Link postition. Allow `top` or `bottom`.
-  - **template** - Link style. Allow any markdown syntx, the default value is `**Have any question? go to github issue to discuss: $$url.**` is the link placeholder，will be replaced by markdown format `![post title](issue url)`
+The original configuration `issueLink` is temporarily deleted and will be re-enabled in later version.
 
-In order to better management issue create and update, the post allow to add a new metadata field `issueNumber`.
+**Note**, the ~~issueNumber~~ metadata parameters are no longer effective, no longer work:
 
 ```
 ---
 title: The post's title
 ...
-issueNumber: 1
+issueNumber: 1 //this line no longer work
 ...
 ---
 ```
 
-This field be specified to connecting post to existing issue.If the value of this field corresponds to the issue does not exist, this field will be ignored. If the value is set `0`, the post will not publish as a issue.
-
 ## Test
-Before test, you should add option about authentication and test repository in `test/options.js` files.The authentication must has access in creating and delete repository.  
+// todo 
 
-```js
-var option = {
-  auth: {
-    // ..authInfo, details in https://github.com/mikedeboer/node-github#authentication
-  }, 
-  repository: {
-    owner: 'owner', // userName
-    repo: '__hexo-igenerator-issue-test'
-  }
-};
-```
+## Problem
 
-Then run `npm run test.`  
+### Publish slow
 
-## Note
+> Requests that create content which triggers notifications, such as issues, comments and pull requests, may be further limited and will not include a Retry-After header in the response. Please create this content at a reasonable pace to avoid further limiting.
 
-Create issues too fast you may see the error:
+Since the interface provided by github limits the rate when the issue was created (moew info see: [dealing-with-abuse-rate-limits] (https://developer.github.com/v3/guides/best-practices-for-integrators/ # dealing-with-abuse-rate-limits). So the time interval for creating the issue is set to 2000 ms, which results in a very slow execution of the task when create many issues, and may also occur as follows problem:
 
 ```
 HTTP/1.1 403 Forbidden
@@ -97,40 +89,19 @@ Connection: close
 }
 ```
 
-This is because github limit some of api's rate: [dealing-with-abuse-rate-limits](https://developer.github.com/v3/guides/best-practices-for-integrators/#dealing-with-abuse-rate-limits)
+In this case, you can re-execute the command at a later time.
 
-> Requests that create content which triggers notifications, such as issues, comments and pull requests, may be further limited and will not include a Retry-After header in the response. Please create this content at a reasonable pace to avoid further limiting.
+For more information, see: [https://github.com/octokit/octokit.net/issues/638] (https://github.com/octokit/octokit.net/issues/638)
 
-So, to aviding the error, the first time publish every posts have a 2s interval, thus it will take very long time. If failed, you can try it later. More details in [https://github.com/octokit/octokit.net/issues/638](https://github.com/octokit/octokit.net/issues/638)
+If necessary, you can modify the `CREATE_ISSUE_INTERVAL` release rate for the` node_modules/hexo-generator-issues/dist/generator` file.
 
-## Update Logs
-**2017-09-18**
+### More
+If there are other questions or feedback, please come to [tcatche/hexo-generator-issues](https://github.com/tcatche/hexo-generator-issues/issues).
 
-Add issue link support.
+## Update
+Rewrites a new version, optimizes the publishing logic, caches the history, and ensures that the next release is faster.
 
-Fix publish issue errors.
-
-**2017-08-02**
-
-Add mocha test case.
-
-Change github lib.
-
-Fix sometimes will duplicated publish problem.
-
-**2017-08-01**
-
-Add support to ignore post when set `issueNumber` value to `0`.
-
-Add babel to transform the code.
-
-**2017-07-31**
-
-Add support to connecting post to existing issues with add post meta data `issueNumber`.
-
-**2017-07-28**
-
-Initialize the Repository.
+**The current version is the beta version, which is not stable and should not be used in important repo.**
 
 ## License
 [MIT](./LICENSE)
