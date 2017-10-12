@@ -8,6 +8,8 @@ The posts and issue are associated with `post.title` to `issue.title`. If the po
 
 And you can use metadata `issueNumber` to point a post to a issue.
 
+(A completely new version is on beta, and it will be more reliability. [See more details and to try](https://github.com/tcatche/hexo-generator-issues/blob/develop/README.md)
+
 ## Install
 
 ```
@@ -104,6 +106,12 @@ This is because github limit some of api's rate: [dealing-with-abuse-rate-limits
 So, to aviding the error, the first time publish every posts have a 2s interval, thus it will take very long time. If failed, you can try it later. More details in [https://github.com/octokit/octokit.net/issues/638](https://github.com/octokit/octokit.net/issues/638)
 
 ## Update Logs
+**2017-10-12**
+
+Rewrite the plugin, more details goto [https://github.com/tcatche/hexo-generator-issues/blob/develop/README.md](https://github.com/tcatche/hexo-generator-issues/blob/develop/README.md) to try.
+
+**The rewrite version is the beta version, which is not stable and should not be used in important repo.**
+
 **2017-09-18**
 
 Add issue link support.
