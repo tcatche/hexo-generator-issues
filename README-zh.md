@@ -1,6 +1,6 @@
 # hexo-generator-issues
 
-[English Document.]('./README.md)
+[English Document.](/README.md)
 
 本插件将个人文章发布到 github 的指定仓库下，每篇文章作为一个 issue。
 

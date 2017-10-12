@@ -1,6 +1,6 @@
 # hexo-generator-issues
 
-[中文文档]('./README-zh.md)
+[中文文档](/README-zh.md)
 
 This plugin publishes articles to github specified repository, and each article as an issue.
 
@@ -28,29 +28,31 @@ Add the following content in your configuration file (`_config.yml`):
 
 ```yml
 issues:
-  # github 认证，提交 issue 的时候需要
+  # github certification, when submit the issue used it
   auth:
-    # 认证类型，更多认证信息查看：https://github.com/mikedeboer/node-github#authentication
+    # Authentication type, more authentication information goto：https://github.com/mikedeboer/node-github#authentication
     type: 
-    # 使用 token 认证需要提供 token
+    # Use token authentication to provide token
     token: 
-    # 使用 client keys 认证需要提供 id 和 secret
+    # Use client keys authentication to provide id and secret
     id:
     secret: 
-    # 使用 credentials 需要提供 username 和 password
+    # Use credentials to provide username and password
     username:
     password:
 
-  # 提供需要放 issues 的仓库
+  # Provide a repository that needs to be placed issues
   repository:
-    owner:  # github 用户名
-    repo: # 指定用户名下的仓库，仓库必须存在
+    owner:  # github username
+    repo: # Specifies the repository under the user name, and the repository must exist
 
-  # 在 issue 中增加博客原文地址的引用，对应的地址是 post.permalink
+  # In the issue to increase the original address of the blog reference, the corresponding address is post.permalink
   sourceLink: 
-    position: 'top' # 博客地址信息放置在开头（`top`，默认）或者结束（`bottom`），使用其他值则忽略该项配置
-    # 原文信息的格式，默认为 `The default template is 'The original: $$url.**`， 
-    # 其中 `$$url` 是博客地址的 url 的占位符，对应于 markdown ： `[${post.title}](${post.permalink})`
+    # blog address information at the beginning (`top`, default) or end (` bottom`), 
+    # use other values ​​to ignore the configuration
+    position: 'top' 
+    # The original message format, the default is `The default template is 'The original: $$url.**`， 
+    # $$url`  is the placeholder for the url of the blog，corresponding to markdown： `[${post.title}](${post.permalink})`
     template: 'The original: $$url.**`. `$$url' 
 ```
 
@@ -95,7 +97,7 @@ For more information, see: [https://github.com/octokit/octokit.net/issues/638] (
 
 If necessary, you can modify the `CREATE_ISSUE_INTERVAL` release rate for the` node_modules/hexo-generator-issues/dist/generator` file.
 
-### More
+### More problem
 If there are other questions or feedback, please come to [tcatche/hexo-generator-issues](https://github.com/tcatche/hexo-generator-issues/issues).
 
 ## Update
