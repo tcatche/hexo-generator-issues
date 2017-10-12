@@ -1,37 +1,49 @@
-let GitHubApi = require("github");
-let github;
-
-let createQueue;
-let updateQueue;
-
-let client;
-let repo;
-
-let log;
-let option = {};
+import moment from 'moment';
+import fs from 'hexo-fs';
+import GitHubApi from "github";
 
 const CREATE_ISSUE_INTERVAL = 2000;
 const ISSUE_DELETE_STATE = "closed";
 const ISSUE_EXIST_STATE = "open";
 const ISSUE_META_KEY = 'issueNumber';
 const PER_PAGE_ISSUE = 100;
-const TEMPLATE_DEFAULT = '**The original: $$url.**';
+const TEMPLATE_DEFAULT = '**The original = $$url.**';
+const PATH = './_issue_generator_record';
+const CONNECT_GITHUB_TIMEOUT = 100000;
 
-module.exports = function (locals, finalCB) {
-  let hexo = this;
-  let config = hexo.config;
+let hexo;
+let config;
+let github;
+let log;
+log = {};
+let options = {};
+log.i = console.log;
+log.e = console.error;
+
+const init = (ctx) => {
+  hexo = ctx;
+  config = hexo.config;
   log = hexo.log;
+  log = {};
+  log.i = console.log;
+  log.e = console.error;
+
   let issuesOption = config.issues;
   if (!issuesOption || !issuesOption.repository || !issuesOption.auth) {
-    return;
+    return false;
   }
-  option.repository = issuesOption.repository;
+
+  options.repository = issuesOption.repository;
+  options.auth = issuesOption.auth;
+
   if (issuesOption.sourceLink && issuesOption.sourceLink.position) {
     if (issuesOption.sourceLink.position == 'top' || issuesOption.sourceLink.position == 'bottom') {
-      option.position = issuesOption.sourceLink.position,
-      option.template = issuesOption.sourceLink.template || TEMPLATE_DEFAULT
+      options.position = issuesOption.sourceLink.position;
+      options.template = issuesOption.sourceLink.template || TEMPLATE_DEFAULT;
     }
   }
+
+  // init github api
   github = new GitHubApi({
     debug: false,
     protocol: "https",
@@ -39,11 +51,12 @@ module.exports = function (locals, finalCB) {
     headers: {
       "user-agent": "hexo-igenerator-issue" // GitHub is happy with a unique user agent
     },
-    timeout: 5000
+    timeout: CONNECT_GITHUB_TIMEOUT,
+    Promise,
   });
-  let auth = issuesOption.auth;
-  if (auth) {
-    github.authenticate(auth);
+
+  if (options.auth) {
+    github.authenticate(options.auth);
   } else {
     let help = [
       'The hexo-generate-issues plugins need authentication',
@@ -51,176 +64,290 @@ module.exports = function (locals, finalCB) {
       'For more help, you can check the docs: '
     ];
     log.i(help.join('\n'));
-    return;
+    return false;
   }
-
-  createQueue = [];
-  updateQueue = [];
-
-  run(locals, finalCB);
+  return true;
 }
 
-function run(locals, finalCB) {
-  let posts = getPosts(locals);
-  getIssues(issues => {
-    setTask(posts, issues);
-    log.i('Your posts will push to %s/%s issues...', option.repository.owner, option.repository.repo);
-    runTask(finalCB);
-  })
-}
-
-function getPosts(locals) {
-  let posts = locals.posts.data.sort((a, b) => a.date - b.date);
-  return posts;
-}
-
-function getIssues(cb) {
+// fetch github repo's issues.
+const fetchAllIssues = () => {
   let issues = [];
   let page = 1;
-  let _getIssues = function () {
-    github.issues.getForRepo({
-      page,
-      per_page: PER_PAGE_ISSUE,
-      state: 'all',
-      ...option.repository,
-    }, (err, _issues) => {
-      if (!err) {
-        if (_issues && _issues.data && _issues.data.length) {
+  // return Promise.resolve([]);
+  log.i('Fetching the issues in repository...')
+  let _fetchIssues = () => 
+    new Promise((resolve, reject) => {
+      github.issues.getForRepo({
+        page,
+        per_page: PER_PAGE_ISSUE,
+        state: 'all',
+        ...options.repository,
+      }).then(_issues => {
+        if (_issues && _issues.data) {
           issues = issues.concat(_issues.data.map(item => ({
-            title: item.title,
-            number: item.number
+            title : item.title,
+            number: item.number,
+            state : item.state
           })));
-          page ++;
-          _getIssues();
+          if (_issues.data.length < PER_PAGE_ISSUE) {
+            resolve(issues);
+          } else {
+            page++;
+            _fetchIssues();
+          }
         } else {
-          cb && cb(issues);
+          resolve(issues);
         }
-      } else {
+      }).catch(err => {
         log.e('Can not get issues %s', err);
-      }
+        reject(err);
+      });
     });
-  }
-  return _getIssues();
-}
 
-function setTask(posts, issues) {
-  for (let index in posts) {
-    let post = posts[index];
-    let issueNumber = post[ISSUE_META_KEY];
-    if (issueNumber == 0 || !post.title) {
-      continue;
-    }
+  return _fetchIssues().then(issues => issues.sort((a, b) => a.number - b.number));
+};
 
-    // Add link to point the source post.
-    let body = post._content;
-    if (option.position && option.position == 'top') {
-      let url = option.template.replace(/\$\$url/g, `[${post.title}](${post.permalink})`);
-      body = `${url}\n\n${body}`;
-    } else if (option.position && option.position == 'bottom') {
-      let url = option.template.replace(/\$\$url/g, `[${post.title}](${post.permalink})`);
-      body = `${body}\n\n${url}`;
-    }
-    let _issue = {
-      title: post.title,
-      body,
-      labels: post.tags.map(item =>item.name),
-      state: ISSUE_EXIST_STATE,
-    };
-
-    // update issue use ISSUE_META_KEY == issue.number
-    if (!isNaN(issueNumber) && issueNumber > 0 && issueNumber <= issues.length) {
-      let issue = issues.find(item => !item._isExist && item.number == issueNumber);
-
-      // update issue with issue.number == issueNumber.
-      if (issue) {
-        issue._isExist = true;
-        addTask(_issue, issue.number);
-
-      // The issueNumber has been used. update issue with issue.title == post.title.
-      } else {
-        issue = issues.find(item => !item._isExist && item.title == post.title);
-
-        // update issue with issue.title == post.title.
-        if (issue) {
-          issue._isExist = true;
-          addTask(_issue, issue.number);
-
-        // create issue with post.
-        } else {
-          addTask(_issue);
-        }
-      }
-    } else {
-      let issue = issues.find(item => !item._isExist && item.title == post.title);
-
-      // update issue with issue.title == post.title.
-      if (issue) {
-        issue._isExist = true;
-        addTask(_issue, issue.number);
-
-      // create issue with post.
-      } else {
-        addTask(_issue);
-      }
-    }
-  }
-
-  // close the issues without having relation to a post.
-  issues.filter(item => !item._isExist).forEach(item => addTask({state: ISSUE_DELETE_STATE}, item.number));
-}
-
-function runTask(finalCB) {
-  let currTaskIndex = 0;
-
-  // Update issues can directly publish.
-  updateQueue.forEach((func, index) => {
-    if (createQueue.length == 0 && index === updateQueue.length - 1) {
-      func(finalCB);
-    } else {
-      func();
-    }
-  });
+// init last time saved publish records
+// if there are records, then just use it and do not check whether the records is valid or not.
+// if there isn't records, then use github issues to create the records.
+const initSavedRecords = (savedRecords, posts, issues) => {
+  let records = {};
   
-  // Create issues rate be limited, so create one fo the issues per 2s.
-  let cb = function () {
-    currTaskIndex ++;
-    currTaskIndex < createQueue.length && setTimeout(() => createQueue[currTaskIndex](cb), CREATE_ISSUE_INTERVAL);
-    currTaskIndex >= createQueue.length && finalCB && finalCB();
+  Object.assign(records, savedRecords);
+
+  if (!records.success) {
+    records.success = {};
+
+    // issues.length > 0 则使用 issues 构建
+    if (issues.length > 0) {
+      let findCounts = 0;
+      for (let issue of issues) {
+        if (findCounts === posts.length) {
+          break;
+        }
+
+        let post = posts.find(aPost => issue.title == aPost.title);
+
+        if (post) {
+          records.success[post._id] = {
+            id: post._id,
+            number: issue.number,
+          }
+          findCounts ++;
+        }
+      }
+      console.log(records)
+    }
   }
-  createQueue.length > 0 && createQueue[currTaskIndex](cb);
+  
+  if (!records.updated) {
+    records.updated = moment(0).format()
+  }
+
+  return records;
 }
 
-function addTask(issue, number) {
-  if (number) {
-    let _task = function (cb) {
-      github.issues.edit({
-        number,
-        ...issue,
-        ...option.repository, 
-      }, (err, res) => {
-        if (err) {
-          log.e('Update issue [url: /%s/%s/issues/%s] [title: %s] failed: %s', option.repository.owner, option.repository.repo, number, issue.title, err);
-        } else {
-          log.i('Success update issue [url: /%s/%s/issues/%s] [title: %s]', option.repository.owner, option.repository.repo, number, issue.title || res.data.title);
-        }
-        cb && cb();
-      });
+// load last time publish history.
+const loadRecords = (posts, issues) =>
+  fs.exists(PATH).then(exist => {
+    if (!exist) return undefined;
+
+    return fs.readFile(PATH).then(content => {
+      return !!content ? JSON.parse(content) : undefined;
+    });
+  }).then(savedRecords => initSavedRecords(savedRecords, posts, issues));
+
+const isPostNeedUpdate = (post, lastRecords) =>
+  post._id in lastRecords.success && moment(lastRecords.updated) < moment(post.updated);
+
+const isPostNeedCreate = (post, lastRecords) => !(post._id in lastRecords.success);
+
+// load posts, filter out the post that doesn't need update and sort the rest posts.
+const loadPosts = (locals) =>
+  locals.posts.data.sort((a, b) => a.date - b.date);
+
+const createPublishIssues = (posts, issues, lastRecords) => {
+  let publishIssues = [];
+  
+  // filter posts that don't need being updated
+  posts = posts.filter(
+    post => {
+      return !!post.title && (isPostNeedUpdate(post, lastRecords) || isPostNeedCreate(post, lastRecords))
     }
-    updateQueue.push(_task);
+  )
+
+  // add create and update post object
+  for (let post of posts) {
+    let _issue = createIssueObject(post);
+    if (isPostNeedUpdate(post, lastRecords)) {
+      let number = lastRecords.success[post._id].number;
+      let gitIssue = issues.find(issue => issue.number == number);
+      if (gitIssue) {
+        gitIssue._isExist = true;
+        _issue.number = number;
+      }
+    }
+    publishIssues.push(_issue);
+  }
+
+  // find the alone issue without having relation to a post and state is equal to ISSUE_EXIST_STATE.
+  // and close these issues.
+  for (let recordId in lastRecords.success) {
+    let record = lastRecords.success[recordId];
+    let gitIssue = issues[record.number - 1];
+    if (gitIssue && gitIssue.number == record.number) {
+      gitIssue._isExist = true;
+    }
+  }
+  
+  issues
+    .filter(issue => !issue._isExist && issue.state === ISSUE_EXIST_STATE)
+    .forEach(issue => publishIssues.push({ title: issue.title, state: ISSUE_DELETE_STATE, number: issue.number }));
+
+  return publishIssues;
+}
+
+// create issue object
+const createIssueObject = post => {
+  // Add link to point the source post.
+  let body = post._content;
+  if (options.position && options.position == 'top') {
+    let url = options.template.replace(/\$\$url/g, `[${post.title}](${post.permalink})`);
+    body = `${url}\n\n${body}`;
+  } else if (options.position && options.position == 'bottom') {
+    let url = options.template.replace(/\$\$url/g, `[${post.title}](${post.permalink})`);
+    body = `${body}\n\n${url}`;
+  }
+
+  return {
+    title: post.title,
+    body,
+    labels: post.tags.map(item => item.name),
+    state: ISSUE_EXIST_STATE,
+    __id: post._id,
+  };
+};
+
+
+const pushToGithub = issue => {
+  let issueParams = { ...issue, ...options.repository };
+  // return Promise.resolve({ data: {} });
+  if (issue.number) {
+    return github.issues.edit(issueParams);
   } else {
-    let _task = function (cb) {
-      github.issues.create({
-        ...option.repository,
-        ...issue
-      }, (err, res) => {
-        if (err) {
-          log.e('Create issue [title: %s] failed: %s', issue.title, err);
-        } else {
-          log.i('Success create issue [url: /%s/%s/issues/%s] [title: %s]', option.repository.owner, option.repository.repo, res.data.number, issue.title);
-        }
-        cb && cb();
-      });
+    return github.issues.create(issueParams);
+  }
+};
+
+const publishAllIssues = (issueQueue) => {
+  let taskLogs = {
+    success: {},
+    summary: [0, 0, 0]//[updateSuccessCounts, updateErrorCounts, createSuccessCounts]
+  };
+  function saveLog(issue, number, countIndex) {
+    if (issue) {
+      taskLogs.success[issue.__id] = {
+        id: issue.__id,
+        number: issue.number || number,
+      }
     }
-    createQueue.push(_task);
+    taskLogs.summary[countIndex]++;
+  };
+
+  log.i('Begin push your posts to %s/%s ...', options.repository.owner, options.repository.repo);
+
+  let taskPromise = Promise.resolve();
+  // Update issues.
+  taskPromise = issueQueue.filter(issue => issue.number).reduce((promise, issue) =>
+    promise.then(() =>
+      pushToGithub(issue).then(res => {
+        if (issue.state === ISSUE_DELETE_STATE) {
+          log.i('Success to close issue [url: /%s/%s/issues/%s] [title: %s]', options.repository.owner, options.repository.repo, issue.number, issue.title || res.data.title);
+        } else {
+          log.i('Success to update issue [url: /%s/%s/issues/%s] [title: %s]', options.repository.owner, options.repository.repo, issue.number, issue.title || res.data.title);
+        }
+        saveLog(issue, null, 0);
+        return;
+      }).catch(err => {
+        log.e('Fail to update issue [url: /%s/%s/issues/%s] [title: %s] : %s', options.repository.owner, options.repository.repo, issue.number, issue.title, err);
+        saveLog(null, null, 1);
+        return;
+      })), taskPromise);
+
+  // Create issues.
+  taskPromise = issueQueue.filter(issue => !issue.number).reduce((promise, issue) =>
+    promise.then(() =>
+      new Promise((resolve, reject) =>
+        pushToGithub(issue).then(res => {
+          log.i('Success to create issue [url: /%s/%s/issues/%s] [title: %s]', options.repository.owner, options.repository.repo, res.data.number, issue.title);
+          saveLog(issue, res.data.number, 2);
+          setTimeout(resolve, CREATE_ISSUE_INTERVAL);
+        }).catch(err => {
+          log.e('Fail to create issue [title: %s] : %s', issue.title, err);
+          reject(err);
+        })
+      )
+    ), taskPromise);
+
+  return taskPromise.then(() => {
+    log.i('Publish finish!');
+    return ;
+  }).catch(() => {
+    log.e('Create error occurs and stop publish!!!');
+    return ;
+  }).then(() => taskLogs);
+};
+
+// save publish history to local file.
+// The history will reduce next publish cost.
+const savePublishLogs = (logs, lastRecords) => {
+  log.i('Saving publish history...');
+  let records = {
+    success: Object.assign({}, lastRecords.success, logs.success),
+    updated: moment().format()
+  }
+
+  return fs.writeFile(PATH, JSON.stringify(records))
+    .then(() => log.i('Success saved publish history.'))
+    .catch(err => log.e(err));
+}
+
+const generator = async function (locals, done) {
+  if (!init(this)) return;
+
+  try {
+
+    let issues = await fetchAllIssues();
+    
+    let posts = loadPosts(locals);
+  
+    let lastRecords = await loadRecords(posts, issues);
+  
+    let publishIssues = createPublishIssues(posts, issues, lastRecords);
+  
+    let publishLogs = await publishAllIssues(publishIssues);
+  
+    return savePublishLogs(publishLogs, lastRecords)
+
+  } catch(err) {
+    console.error(err)
   }
 }
+
+if (process.env.NODE_ENV === "development") {
+  generator._inner = {
+    init,
+    fetchAllIssues,
+    loadRecords,
+    isPostNeedUpdate,
+    isPostNeedCreate,
+    loadPosts,
+    createPublishIssues,
+    createIssueObject,
+    pushToGithub,
+    publishAllIssues,
+    savePublishLogs,
+  }
+}
+
+module.exports = generator;
