@@ -24,6 +24,7 @@ After the release, the plugin will generate a `_issue_generator_record'` file in
 this will ensure the next publish only publish the smallest changes, or the next publish will re-publish all the articles. This will cost a lot of time to publish your articles.
 
 ## Configuration
+
 Add the following content in your configuration file (`_config.yml`):
 
 ```yml
@@ -70,6 +71,7 @@ issueNumber: 1 //this line no longer work
 ```
 
 ## Test
+
 // todo 
 
 ## Problem
@@ -98,12 +100,15 @@ For more information, see: [https://github.com/octokit/octokit.net/issues/638] (
 If necessary, you can modify the `CREATE_ISSUE_INTERVAL` release rate for the` node_modules/hexo-generator-issues/dist/generator` file.
 
 ### More problem
+
 If there are other questions or feedback, please come to [tcatche/hexo-generator-issues](https://github.com/tcatche/hexo-generator-issues/issues).
 
 ## Update
+
 Rewrites a new version, optimizes the publishing logic, caches the history, and ensures that the next release is faster.
 
-**The current version is the beta version, which is not stable and should not be used in important repo.**
+**The current version is the beta version, which is not stable. The issues on github can not be deleted,so you should not use it in any important repos.**
 
 ## License
+
 [MIT](./LICENSE)
