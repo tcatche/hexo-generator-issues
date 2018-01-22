@@ -11,6 +11,7 @@ npm install hexo-generator-issues@beta --save
 ```
 
 ## 发布
+
 插件在执行 `generate` 的过程生效，也就是说，当执行 `hexo g` 或 `hexo generate`，发布将会执行。
 
 ```js
@@ -22,6 +23,7 @@ hexo g
 发布后，将会在博客目录下生成 `_issue_generator_record'` 文件，文件记录了当前发布的内容，请**不要删除**，这个会保证下次发布仅发布最小的更改内容，否则下次发布将会重新发布所有的文章，从而导致发布速度较慢。
 
 ## 配置
+
 在配置文件中（`_config.yml`）添加以下内容：
 
 ```yml
@@ -66,6 +68,7 @@ issueNumber: 1 // 不再起作用
 ```
 
 ## 测试
+
 // todo 待补充 
 
 ## 问题
@@ -94,15 +97,19 @@ Connection: close
 如果需要，可以修改 `node_modules/hexo-generator-issues/dist/generator` 文件的 `CREATE_ISSUE_INTERVAL` 发布速率。
 
 ### 超时
+
 国内可能访问 github 较慢，可以修改 `node_modules/hexo-generator-issues/dist/generator` 文件的 `CONNECT_GITHUB_TIMEOUT` 超时时间为更大的数字，默认为 5s或者使用代理
 
 ### 更多问题
+
 如果有其他问题或者反馈，请到 [tcatche/hexo-generator-issues](https://github.com/tcatche/hexo-generator-issues/issues) 提出。
 
 ## 更新
+
 当前版本为重写的新版本，优化了发布逻辑，对历史记录进行了缓存，确保下次发布更加快速。
 
-**当前版本为测试版本，并不稳定，定不要在重要仓库下使用。**
+**当前版本为测试版本，并不稳定，由于 Github 不支持删除issue，所以不要在重要的仓库下使用。**
 
 ## 许可
+
 [MIT](./LICENSE)

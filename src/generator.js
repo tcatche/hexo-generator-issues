@@ -1,6 +1,7 @@
 import moment from 'moment';
 import fs from 'hexo-fs';
 import GitHubApi from "github";
+import md5 from 'md5';
 
 const CREATE_ISSUE_INTERVAL = 2000;
 const ISSUE_DELETE_STATE = "closed";
@@ -20,6 +21,12 @@ let options = {};
 log.i = console.log;
 log.e = console.error;
 
+
+/**
+ * init params.
+ * @param {any} ctx 
+ * @returns 
+ */
 const init = (ctx) => {
   hexo = ctx;
   config = hexo.config;
@@ -44,6 +51,7 @@ const init = (ctx) => {
   }
 
   // init github api
+  
   github = new GitHubApi({
     debug: false,
     protocol: "https",
@@ -69,7 +77,9 @@ const init = (ctx) => {
   return true;
 }
 
-// fetch github repo's issues.
+/**
+ * Load all of the issues from the github repo.
+ */
 const fetchAllIssues = () => {
   let issues = [];
   let page = 1;
@@ -107,9 +117,13 @@ const fetchAllIssues = () => {
   return _fetchIssues().then(issues => issues.sort((a, b) => a.number - b.number));
 };
 
-// init last time saved publish records
-// if there are records, then just use it and do not check whether the records is valid or not.
-// if there isn't records, then use github issues to create the records.
+/**
+ * if there isn't records, then use github issues to create the records.
+ * 
+ * @param {*} savedRecords 
+ * @param {*} posts 
+ * @param {*} issues 
+ */
 const initSavedRecords = (savedRecords, posts, issues) => {
   let records = {};
   
@@ -129,14 +143,15 @@ const initSavedRecords = (savedRecords, posts, issues) => {
         let post = posts.find(aPost => issue.title == aPost.title);
 
         if (post) {
-          records.success[post._id] = {
-            id: post._id,
+          records.success[post.__uid] = {
+            id: post.__uid,
             number: issue.number,
+            title: post.title,
+            path: post.path,
           }
           findCounts ++;
         }
       }
-      console.log(records)
     }
   }
   
@@ -147,7 +162,14 @@ const initSavedRecords = (savedRecords, posts, issues) => {
   return records;
 }
 
-// load last time publish history.
+/**
+ * load last time generate history.
+ * if there are last time generate records, then just use it and do not check whether the records is valid or not.
+ * if there isn't records, then use github issues to create the records.
+ * 
+ * @param {*} posts 
+ * @param {*} issues 
+ */
 const loadRecords = (posts, issues) =>
   fs.exists(PATH).then(exist => {
     if (!exist) return undefined;
@@ -157,19 +179,43 @@ const loadRecords = (posts, issues) =>
     });
   }).then(savedRecords => initSavedRecords(savedRecords, posts, issues));
 
+/**
+ * If the post need to be updated.
+ * @param {*} locals 
+ */
 const isPostNeedUpdate = (post, lastRecords) =>
-  post._id in lastRecords.success && moment(lastRecords.updated) < moment(post.updated);
+  post.__uid in lastRecords.success && moment(lastRecords.updated) < moment(post.updated);
 
-const isPostNeedCreate = (post, lastRecords) => !(post._id in lastRecords.success);
+  
+/**
+ * If the post have created issus.
+ * @param {*} locals 
+ */
+const isPostNeedCreate = (post, lastRecords) => !(post.__uid in lastRecords.success);
 
-// load posts, filter out the post that doesn't need update and sort the rest posts.
-const loadPosts = (locals) =>
-  locals.posts.data.sort((a, b) => a.date - b.date);
+/**
+ * load posts, filter out the post that doesn't need update and sort the rest posts.
+ * @param {*} locals 
+ */
+const loadPosts = (locals) => {
+  locals.posts.data.forEach(post => post.__uid = md5(post.path));
+  return locals.posts.data.sort((a, b) => a.date - b.date);
+}
 
+/**
+ * Create the create and update issues list with this three steps:
+ * 1. filter out posts that don't need being updated
+ * 2. add create and update issue.
+ * 3. find the alone issue without having relation to a post and state is equal to ISSUE_EXIST_STATE and close these issues.
+ * 
+ * @param {*} posts 
+ * @param {*} issues 
+ * @param {*} lastRecords 
+ */
 const createPublishIssues = (posts, issues, lastRecords) => {
   let publishIssues = [];
   
-  // filter posts that don't need being updated
+  // filter out posts that don't need being updated
   posts = posts.filter(
     post => {
       return !!post.title && (isPostNeedUpdate(post, lastRecords) || isPostNeedCreate(post, lastRecords))
@@ -180,10 +226,10 @@ const createPublishIssues = (posts, issues, lastRecords) => {
   for (let post of posts) {
     let _issue = createIssueObject(post);
     if (isPostNeedUpdate(post, lastRecords)) {
-      let number = lastRecords.success[post._id].number;
-      let gitIssue = issues.find(issue => issue.number == number);
-      if (gitIssue) {
-        gitIssue._isExist = true;
+      let number = lastRecords.success[post.__uid].number;
+      let gitIssues = issues.find(issue => issue.number == number);
+      if (gitIssues) {
+        gitIssues._isExist = true;
         _issue.number = number;
       }
     }
@@ -207,7 +253,10 @@ const createPublishIssues = (posts, issues, lastRecords) => {
   return publishIssues;
 }
 
-// create issue object
+/**
+ * Create issue data object for the post need to be create or update.
+ * @param {*} post 
+ */
 const createIssueObject = post => {
   // Add link to point the source post.
   let body = post._content;
@@ -224,14 +273,19 @@ const createIssueObject = post => {
     body,
     labels: post.tags.map(item => item.name),
     state: ISSUE_EXIST_STATE,
-    __id: post._id,
+    __id: post.__uid,
+    path: post.path,
   };
 };
 
-
+/**
+ * push a issue to github.
+ * It use issue.number to decide create or update github issue.
+ * @param {*} issue object, create from createIssueObject function.
+ * @returns {Promise}
+ */
 const pushToGithub = issue => {
   let issueParams = { ...issue, ...options.repository };
-  // return Promise.resolve({ data: {} });
   if (issue.number) {
     return github.issues.edit(issueParams);
   } else {
@@ -239,19 +293,25 @@ const pushToGithub = issue => {
   }
 };
 
+/**
+ * The task runner to publish all issues to github.
+ * 1. first, update all issues need to be, when error occurs,it will ignore it.
+ * 2. Then, create all issues need to be, when error occurs,it will stop.
+ * @param {*} issueQueue 
+ */
 const publishAllIssues = (issueQueue) => {
   let taskLogs = {
     success: {},
-    summary: [0, 0, 0]//[updateSuccessCounts, updateErrorCounts, createSuccessCounts]
   };
-  function saveLog(issue, number, countIndex) {
+  function saveLog(issue, number) {
     if (issue) {
       taskLogs.success[issue.__id] = {
         id: issue.__id,
         number: issue.number || number,
+        path: issue.path ,
+        title: issue.title ,
       }
     }
-    taskLogs.summary[countIndex]++;
   };
 
   log.i('Begin push your posts to %s/%s ...', options.repository.owner, options.repository.repo);
@@ -264,30 +324,27 @@ const publishAllIssues = (issueQueue) => {
         if (issue.state === ISSUE_DELETE_STATE) {
           log.i('Success to close issue [url: /%s/%s/issues/%s] [title: %s]', options.repository.owner, options.repository.repo, issue.number, issue.title || res.data.title);
         } else {
-          log.i('Success to update issue [url: /%s/%s/issues/%s] [title: %s]', options.repository.owner, options.repository.repo, issue.number, issue.title || res.data.title);
+          log.i('Success to update issue [url: /%s/%s/issues/%s] [title: %s]', options.repository.owner, options.repository.repo, issue.number,issue.title || res.data.title);
         }
-        saveLog(issue, null, 0);
+        saveLog(issue, null);
         return;
       }).catch(err => {
         log.e('Fail to update issue [url: /%s/%s/issues/%s] [title: %s] : %s', options.repository.owner, options.repository.repo, issue.number, issue.title, err);
-        saveLog(null, null, 1);
         return;
       })), taskPromise);
 
   // Create issues.
   taskPromise = issueQueue.filter(issue => !issue.number).reduce((promise, issue) =>
-    promise.then(() =>
-      new Promise((resolve, reject) =>
-        pushToGithub(issue).then(res => {
-          log.i('Success to create issue [url: /%s/%s/issues/%s] [title: %s]', options.repository.owner, options.repository.repo, res.data.number, issue.title);
-          saveLog(issue, res.data.number, 2);
-          setTimeout(resolve, CREATE_ISSUE_INTERVAL);
-        }).catch(err => {
-          log.e('Fail to create issue [title: %s] : %s', issue.title, err);
-          reject(err);
-        })
-      )
-    ), taskPromise);
+    promise.then(() => new Promise((resolve, reject) =>
+      pushToGithub(issue).then(res => {
+        log.i('Success to create issue [url: /%s/%s/issues/%s] [title: %s]', options.repository.owner, options.repository.repo, res.data.number, issue.title);
+        saveLog(issue, res.data.number);
+        setTimeout(resolve, CREATE_ISSUE_INTERVAL);
+      }).catch(err => {
+        log.e('Fail to create issue [title: %s] : %s', issue.title, err);
+        reject(err);
+      }))
+  ), taskPromise);
 
   return taskPromise.then(() => {
     log.i('Publish finish!');
@@ -316,16 +373,15 @@ const generator = async function (locals, done) {
   if (!init(this)) return;
 
   try {
+    const posts = loadPosts(locals);
 
-    let issues = await fetchAllIssues();
-    
-    let posts = loadPosts(locals);
+    const issues = await fetchAllIssues();
+
+    const lastRecords = await loadRecords(posts, issues);
   
-    let lastRecords = await loadRecords(posts, issues);
+    const publishIssues = createPublishIssues(posts, issues, lastRecords);
   
-    let publishIssues = createPublishIssues(posts, issues, lastRecords);
-  
-    let publishLogs = await publishAllIssues(publishIssues);
+    const publishLogs = await publishAllIssues(publishIssues);
   
     return savePublishLogs(publishLogs, lastRecords)
 
