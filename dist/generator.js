@@ -319,32 +319,40 @@ const publishAllIssues = issueQueue => {
     }
   };
 
+  const updateIssueQueue = issueQueue.filter(issue => issue.number);
+  const createIssueQueue = issueQueue.filter(issue => !issue.number);
   log.i('Begin push your posts to %s/%s ...', options.repository.owner, options.repository.repo);
-
+  log.i('The number to be updated is: %s', updateIssueQueue.length);
+  log.i('The number to be created is: %s', createIssueQueue.length);
   let taskPromise = Promise.resolve();
+
   // Update issues.
-  taskPromise = issueQueue.filter(issue => issue.number).reduce((promise, issue) => promise.then(() => pushToGithub(issue).then(res => {
-    if (issue.state === ISSUE_DELETE_STATE) {
-      log.i('Success to close issue [url: /%s/%s/issues/%s] [title: %s]', options.repository.owner, options.repository.repo, issue.number, issue.title || res.data.title);
-    } else {
-      log.i('Success to update issue [url: /%s/%s/issues/%s] [title: %s]', options.repository.owner, options.repository.repo, issue.number, issue.title || res.data.title);
-    }
-    saveLog(issue, null);
-    return;
-  }).catch(err => {
-    log.e('Fail to update issue [url: /%s/%s/issues/%s] [title: %s] : %s', options.repository.owner, options.repository.repo, issue.number, issue.title, err);
-    return;
-  })), taskPromise);
+  if (updateIssueQueue.length > 0) {
+    taskPromise = updateIssueQueue.reduce((promise, issue) => promise.then(() => pushToGithub(issue).then(res => {
+      if (issue.state === ISSUE_DELETE_STATE) {
+        log.i('Success to close issue [url: /%s/%s/issues/%s] [title: %s]', options.repository.owner, options.repository.repo, issue.number, issue.title || res.data.title);
+      } else {
+        log.i('Success to update issue [url: /%s/%s/issues/%s] [title: %s]', options.repository.owner, options.repository.repo, issue.number, issue.title || res.data.title);
+      }
+      saveLog(issue, null);
+      return;
+    }).catch(err => {
+      log.e('Fail to update issue [url: /%s/%s/issues/%s] [title: %s] : %s', options.repository.owner, options.repository.repo, issue.number, issue.title, err);
+      return;
+    })), taskPromise);
+  }
 
   // Create issues.
-  taskPromise = issueQueue.filter(issue => !issue.number).reduce((promise, issue) => promise.then(() => new Promise((resolve, reject) => pushToGithub(issue).then(res => {
-    log.i('Success to create issue [url: /%s/%s/issues/%s] [title: %s]', options.repository.owner, options.repository.repo, res.data.number, issue.title);
-    saveLog(issue, res.data.number);
-    setTimeout(resolve, CREATE_ISSUE_INTERVAL);
-  }).catch(err => {
-    log.e('Fail to create issue [title: %s] : %s', issue.title, err);
-    reject(err);
-  }))), taskPromise);
+  if (createIssueQueue.length > 0) {
+    taskPromise = createIssueQueue.reduce((promise, issue) => promise.then(() => new Promise((resolve, reject) => pushToGithub(issue).then(res => {
+      log.i('Success to create issue [url: /%s/%s/issues/%s] [title: %s]', options.repository.owner, options.repository.repo, res.data.number, issue.title);
+      saveLog(issue, res.data.number);
+      setTimeout(resolve, CREATE_ISSUE_INTERVAL);
+    }).catch(err => {
+      log.e('Fail to create issue [title: %s] : %s', issue.title, err);
+      reject(err);
+    }))), taskPromise);
+  }
 
   return taskPromise.then(() => {
     log.i('Publish finish!');
@@ -368,8 +376,11 @@ const savePublishLogs = (logs, lastRecords) => {
 };
 
 const generator = (() => {
-  var _ref = _asyncToGenerator(function* (locals, done) {
-    if (!init(this)) return;
+  var _ref = _asyncToGenerator(function* (locals) {
+    if (!init(this)) {
+      log.i('Config not exist, The "hexo-generator-issues" plugin will not run.');
+      return {};
+    };
 
     try {
       const posts = loadPosts(locals);
@@ -382,13 +393,15 @@ const generator = (() => {
 
       const publishLogs = yield publishAllIssues(publishIssues);
 
-      return savePublishLogs(publishLogs, lastRecords);
+      yield savePublishLogs(publishLogs, lastRecords);
+
+      return {};
     } catch (err) {
-      console.error(err);
+      log.e(err);
     }
   });
 
-  return function generator(_x, _x2) {
+  return function generator(_x) {
     return _ref.apply(this, arguments);
   };
 })();
