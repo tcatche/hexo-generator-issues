@@ -400,7 +400,8 @@ const generator = async function (locals) {
     return {};
 
   } catch(err) {
-    log.e(err)
+    log.e(err);
+    return {};
   }
 }
 
