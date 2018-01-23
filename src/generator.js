@@ -1,6 +1,6 @@
 import moment from 'moment';
 import fs from 'hexo-fs';
-import GitHubApi from "github";
+import GitHubApi from "@octokit/rest";
 import md5 from 'md5';
 
 const CREATE_ISSUE_INTERVAL = 2000;
@@ -10,38 +10,33 @@ const ISSUE_META_KEY = 'issueNumber';
 const PER_PAGE_ISSUE = 100;
 const TEMPLATE_DEFAULT = '**The original = $$url.**';
 const PATH = './_issue_generator_record';
-const CONNECT_GITHUB_TIMEOUT = 100000;
+const CONNECT_GITHUB_TIMEOUT = 10000;
 
-let hexo;
-let config;
-let github;
-let log;
-log = {};
+let githubApi;
+let log = {};
 let options = {};
-log.i = console.log;
-log.e = console.error;
-
 
 /**
  * init params.
- * @param {any} ctx 
+ * @param {any} ctx hexo
  * @returns 
  */
 const init = (ctx) => {
-  hexo = ctx;
-  config = hexo.config;
-  log = hexo.log;
-  log = {};
-  log.i = console.log;
-  log.e = console.error;
-
-  let issuesOption = config.issues;
+  log = ctx.log;
+  const issuesOption = ctx.config.issues;
   if (!issuesOption || !issuesOption.repository || !issuesOption.auth) {
+    let help = `
+      Generator-Issues-Plugin: The hexo-generate-issues plugins need auth and repository options.
+      Some of the options is not exist, so the plugin will not run.
+      For more help, you can check the docs: https://www.npmjs.com/package/hexo-generator-issues.
+    `;
+    log.w(help);
     return false;
   }
 
   options.repository = issuesOption.repository;
   options.auth = issuesOption.auth;
+  options.repos = `${options.repository.owner}/${options.repository.repo}`;
 
   if (issuesOption.sourceLink && issuesOption.sourceLink.position) {
     if (issuesOption.sourceLink.position == 'top' || issuesOption.sourceLink.position == 'bottom') {
@@ -51,8 +46,17 @@ const init = (ctx) => {
   }
 
   // init github api
-  
-  github = new GitHubApi({
+  githubApi = getGithubApi(options);
+
+  return true;
+}
+
+/**
+ * github api tools
+ * @param {} options 
+ */
+function getGithubApi(options) {
+  const octokit = new GitHubApi({
     debug: false,
     protocol: "https",
     host: "api.github.com", // should be api.github.com for GitHub
@@ -63,58 +67,72 @@ const init = (ctx) => {
     Promise,
   });
 
-  if (options.auth) {
-    github.authenticate(options.auth);
-  } else {
-    let help = [
-      'The hexo-generate-issues plugins need authentication',
-      'The authentication config is empty, so it will not upload',
-      'For more help, you can check the docs: '
-    ];
-    log.i(help.join('\n'));
-    return false;
+  octokit.authenticate(options.auth);
+  
+  return {
+    /**
+     * get the page issues from github.
+     * @param {number} page
+     * @param {number} per_page
+     * @returns {Promise}
+     */
+    fetchIssues(page = 1, per_page = PER_PAGE_ISSUE) {
+      return octokit.issues.getForRepo({
+        page,
+        per_page,
+        state: 'all',
+        ...options.repository,
+      });
+    },
+    /**
+     * get all issues from github.
+     * @param {number} page
+     * @param {number} per_page
+     * @returns {array} data
+     */
+    async fetchAllIssues() {
+      const response = await this.fetchIssues();
+      const { data } = response;
+      while (octokit.hasNextPage(response)) {
+        response = await octokit.getNextPage(response);
+        data = data.concat(response.data);
+      }
+      return data;
+    },
+    /**
+     * push a issue to github.
+     * It use issue.number to decide whether to create or update a github issue.
+     * @param {*} issue object, create from createIssueObject function.
+     * @returns {Promise}
+     */
+    push(issue) {
+      let issueParams = { ...issue, ...options.repository };
+      if (issue.number) {
+        return octokit.issues.edit(issueParams);
+      } else {
+        return octokit.issues.create(issueParams);
+      }
+    },
   }
-  return true;
 }
 
 /**
  * Load all of the issues from the github repo.
  */
-const fetchAllIssues = () => {
-  let issues = [];
-  let page = 1;
-  // return Promise.resolve([]);
-  log.i('Fetching the issues in repository...')
-  let _fetchIssues = () => 
-    new Promise((resolve, reject) => {
-      github.issues.getForRepo({
-        page,
-        per_page: PER_PAGE_ISSUE,
-        state: 'all',
-        ...options.repository,
-      }).then(_issues => {
-        if (_issues && _issues.data) {
-          issues = issues.concat(_issues.data.map(item => ({
-            title : item.title,
-            number: item.number,
-            state : item.state
-          })));
-          if (_issues.data.length < PER_PAGE_ISSUE) {
-            resolve(issues);
-          } else {
-            page++;
-            _fetchIssues();
-          }
-        } else {
-          resolve(issues);
-        }
-      }).catch(err => {
-        log.e('Can not get issues %s', err);
-        reject(err);
-      });
-    });
-
-  return _fetchIssues().then(issues => issues.sort((a, b) => a.number - b.number));
+async function fetchAllIssues() {
+  log.i('Generator-Issues-Plugin: Fetching the issues in repository %s...', options.repos);
+  try {
+    let issues = await githubApi.fetchAllIssues();
+    issues = issues.map(item => ({
+      title : item.title,
+      number: item.number,
+      state : item.state
+    })).sort((a, b) => a.number - b.number);
+    return issues;
+  } catch(err) {
+    log.e('Generator-Issues-Plugin: Fetch issues Failed!');
+    throw(err);
+  }
 };
 
 /**
@@ -126,12 +144,9 @@ const fetchAllIssues = () => {
  */
 const initSavedRecords = (savedRecords, posts, issues) => {
   let records = {};
-  
   Object.assign(records, savedRecords);
-
   if (!records.success) {
     records.success = {};
-
     // issues.length > 0 则使用 issues 构建
     if (issues.length > 0) {
       let findCounts = 0;
@@ -181,7 +196,8 @@ const loadRecords = (posts, issues) =>
 
 /**
  * If the post need to be updated.
- * @param {*} locals 
+ * @param {*} post 
+ * @param {*} lastRecords 
  */
 const isPostNeedUpdate = (post, lastRecords) =>
   post.__uid in lastRecords.success && moment(lastRecords.updated) < moment(post.updated);
@@ -189,7 +205,8 @@ const isPostNeedUpdate = (post, lastRecords) =>
   
 /**
  * If the post have created issus.
- * @param {*} locals 
+ * @param {*} post 
+ * @param {*} lastRecords 
  */
 const isPostNeedCreate = (post, lastRecords) => !(post.__uid in lastRecords.success);
 
@@ -212,8 +229,8 @@ const loadPosts = (locals) => {
  * @param {*} issues 
  * @param {*} lastRecords 
  */
-const createPublishIssues = (posts, issues, lastRecords) => {
-  let publishIssues = [];
+const createPushIssues = (posts, issues, lastRecords) => {
+  let pushIssues = [];
   
   // filter out posts that don't need being updated
   posts = posts.filter(
@@ -233,7 +250,7 @@ const createPublishIssues = (posts, issues, lastRecords) => {
         _issue.number = number;
       }
     }
-    publishIssues.push(_issue);
+    pushIssues.push(_issue);
   }
 
   // find the alone issue without having relation to a post and state is equal to ISSUE_EXIST_STATE.
@@ -248,9 +265,9 @@ const createPublishIssues = (posts, issues, lastRecords) => {
   
   issues
     .filter(issue => !issue._isExist && issue.state === ISSUE_EXIST_STATE)
-    .forEach(issue => publishIssues.push({ title: issue.title, state: ISSUE_DELETE_STATE, number: issue.number }));
+    .forEach(issue => pushIssues.push({ title: issue.title, state: ISSUE_DELETE_STATE, number: issue.number }));
 
-  return publishIssues;
+  return pushIssues;
 }
 
 /**
@@ -279,128 +296,104 @@ const createIssueObject = post => {
 };
 
 /**
- * push a issue to github.
- * It use issue.number to decide create or update github issue.
- * @param {*} issue object, create from createIssueObject function.
- * @returns {Promise}
- */
-const pushToGithub = issue => {
-  let issueParams = { ...issue, ...options.repository };
-  if (issue.number) {
-    return github.issues.edit(issueParams);
-  } else {
-    return github.issues.create(issueParams);
-  }
-};
-
-/**
- * The task runner to publish all issues to github.
+ * The task runner to push all issues to github.
  * 1. first, update all issues need to be, when error occurs,it will ignore it.
  * 2. Then, create all issues need to be, when error occurs,it will stop.
  * @param {*} issueQueue 
  */
-const publishAllIssues = (issueQueue) => {
+async function pushAllIssues(issueQueue) {
   let taskLogs = {
     success: {},
   };
   function saveLog(issue, number) {
-    if (issue) {
-      taskLogs.success[issue.__id] = {
-        id: issue.__id,
-        number: issue.number || number,
-        path: issue.path ,
-        title: issue.title ,
-      }
+    taskLogs.success[issue.__id] = {
+      id: issue.__id,
+      number: issue.number || number,
+      path: issue.path ,
+      title: issue.title ,
     }
   };
 
   const updateIssueQueue = issueQueue.filter(issue => issue.number);
   const createIssueQueue = issueQueue.filter(issue => !issue.number);
-  log.i('Begin push your posts to %s/%s ...', options.repository.owner, options.repository.repo);
-  log.i('The number to be updated is: %s', updateIssueQueue.length);
-  log.i('The number to be created is: %s', createIssueQueue.length);
-  let taskPromise = Promise.resolve();
+  log.i(`Generator-Issues-Plugin: Begin push your posts to ${options.repos}...`);
+  log.i(`Generator-Issues-Plugin: The number to be updated is: ${updateIssueQueue.length}`);
+  log.i(`Generator-Issues-Plugin: The number to be created is: ${createIssueQueue.length}`);
 
-  // Update issues.
+  // Update issues concurrently.
+  // when error occurs, stop create issues.
   if (updateIssueQueue.length > 0) {
-    taskPromise = updateIssueQueue.reduce((promise, issue) =>
-      promise.then(() =>
-        pushToGithub(issue).then(res => {
-          if (issue.state === ISSUE_DELETE_STATE) {
-            log.i('Success to close issue [url: /%s/%s/issues/%s] [title: %s]', options.repository.owner, options.repository.repo, issue.number, issue.title || res.data.title);
-          } else {
-            log.i('Success to update issue [url: /%s/%s/issues/%s] [title: %s]', options.repository.owner, options.repository.repo, issue.number,issue.title || res.data.title);
-          }
-          saveLog(issue, null);
-          return;
-        }).catch(err => {
-          log.e('Fail to update issue [url: /%s/%s/issues/%s] [title: %s] : %s', options.repository.owner, options.repository.repo, issue.number, issue.title, err);
-          return;
-        })
-      ), taskPromise);
+    updateIssueQueue.forEach(async issue => {
+      try {
+        const res = await githubApi.push(issue);
+        saveLog(issue);
+        if (issue.state === ISSUE_DELETE_STATE) {
+          log.i(`Generator-Issues-Plugin: Success closed: [url: /${options.repos}/issues/${issue.number}] [title: ${issue.title || res.data.title}]`);
+        } else {
+          log.i(`Generator-Issues-Plugin: Success updated: [url: /${options.repos}/issues/${issue.number}] [title: ${issue.title || res.data.title}]`);
+        }
+      } catch(err) {
+        if (issue.state === ISSUE_DELETE_STATE) {
+          log.e(`Generator-Issues-Plugin: Fail closed: [url: /${options.repos}/issues/${issue.number}] [title: ${issue.title || res.data.title}]`);
+        } else {
+          log.e(`Generator-Issues-Plugin: Fail updated: [url: /${options.repos}/issues/${issue.number}] [title: ${issue.title || res.data.title}]`);
+        }
+      }
+    });
   }
 
-  // Create issues.
+  // Create issues serially.
+  // when error occurs, stop create issues.
   if (createIssueQueue.length > 0) {
-    taskPromise = createIssueQueue.reduce((promise, issue) =>
-      promise.then(() => new Promise((resolve, reject) =>
-        pushToGithub(issue).then(res => {
-          log.i('Success to create issue [url: /%s/%s/issues/%s] [title: %s]', options.repository.owner, options.repository.repo, res.data.number, issue.title);
-          saveLog(issue, res.data.number);
+    for (const issue of createIssueQueue) {
+      try {
+        const res = await githubApi.push(issue);
+        log.i(`Generator-Issues-Plugin: Success to create issue [url: /${options.repos}/issues/${res.data.number}] [title: ${issue.title || response.data.title}]`);
+        saveLog(issue, res.data.number);
+        await new Promise((resolve) => {
           setTimeout(resolve, CREATE_ISSUE_INTERVAL);
-        }).catch(err => {
-          log.e('Fail to create issue [title: %s] : %s', issue.title, err);
-          reject(err);
-        }))
-    ), taskPromise);
+        });
+      } catch(err) {
+        log.e(`Generator-Issues-Plugin: Fail to create issue [title: ${issue.title}]:`);
+        log.e(err);
+        log.e('Generator-Issues-Plugin: Stop push issues!');
+        return taskLogs;
+      }
+    }
   }
 
-  return taskPromise.then(() => {
-    log.i('Publish finish!');
-    return ;
-  }).catch(() => {
-    log.e('Create error occurs and stop publish!!!');
-    return ;
-  }).then(() => taskLogs);
+  log.i('Generator-Issues-Plugin: Push finish!');
+  return taskLogs;
 };
 
-// save publish history to local file.
-// The history will reduce next publish cost.
-const savePublishLogs = (logs, lastRecords) => {
-  log.i('Saving publish history...');
+// save push history to local file.
+// The history will reduce next push cost.
+async function savePushLogs(logs, lastRecords) {
+  log.i('Generator-Issues-Plugin: Saving push history...');
   let records = {
     success: Object.assign({}, lastRecords.success, logs.success),
     updated: moment().format()
   }
 
-  return fs.writeFile(PATH, JSON.stringify(records))
-    .then(() => log.i('Success saved publish history.'))
-    .catch(err => log.e(err));
+  await fs.writeFile(PATH, JSON.stringify(records));
+  log.i('Generator-Issues-Plugin: Success saved push history.');
 }
 
 const generator = async function (locals) {
   if (!init(this)) {
-    log.i('Config not exist, The "hexo-generator-issues" plugin will not run.');
     return {};
   };
 
   try {
     const posts = loadPosts(locals);
-
     const issues = await fetchAllIssues();
-
     const lastRecords = await loadRecords(posts, issues);
-  
-    const publishIssues = createPublishIssues(posts, issues, lastRecords);
-  
-    const publishLogs = await publishAllIssues(publishIssues);
-  
-    await savePublishLogs(publishLogs, lastRecords);
-
+    const pushIssues = createPushIssues(posts, issues, lastRecords);
+    const pushLogs = await pushAllIssues(pushIssues);
+    await savePushLogs(pushLogs, lastRecords);
     return {};
-
   } catch(err) {
-    log.e(err);
+    log.e('Generator-Issues-Plugin: ', err);
     return {};
   }
 }
@@ -413,11 +406,10 @@ if (process.env.NODE_ENV === "development") {
     isPostNeedUpdate,
     isPostNeedCreate,
     loadPosts,
-    createPublishIssues,
+    createPushIssues,
     createIssueObject,
-    pushToGithub,
-    publishAllIssues,
-    savePublishLogs,
+    pushAllIssues,
+    savePushLogs,
   }
 }
 
