@@ -1,4 +1,24 @@
-var should = require('chai').should();
+const should = require('chai').should();
+const generator = require('../src/generator');
+const {
+  _setInner,
+  init,
+  fetchAllIssues,
+  loadRecords,
+  isPostNeedUpdate,
+  isPostNeedCreate,
+  loadPosts,
+  createPushIssues,
+  createIssueObject,
+  pushAllIssues,
+  savePushLogs,
+} = generator._inner;
+
+const log = {
+  logs,
+  e: () => {},
+  i: () => {},
+}
 
 // todo
 describe('hexo-generator-alias', function() {
