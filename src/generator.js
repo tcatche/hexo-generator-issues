@@ -21,7 +21,7 @@ let options = {};
  * @param {any} ctx hexo
  * @returns 
  */
-const init = (ctx) => {
+function init(ctx) {
   log = ctx.log;
   const issuesOption = ctx.config.issues;
   if (!issuesOption || !issuesOption.repository || !issuesOption.auth) {
@@ -142,7 +142,7 @@ async function fetchAllIssues() {
  * @param {*} posts 
  * @param {*} issues 
  */
-const initSavedRecords = (savedRecords, posts, issues) => {
+function initSavedRecords(savedRecords, posts, issues) {
   let records = {};
   Object.assign(records, savedRecords);
   if (!records.success) {
@@ -214,7 +214,7 @@ const isPostNeedCreate = (post, lastRecords) => !(post.__uid in lastRecords.succ
  * load posts, filter out the post that doesn't need update and sort the rest posts.
  * @param {*} locals 
  */
-const loadPosts = (locals) => {
+function loadPosts(locals) {
   locals.posts.data.forEach(post => post.__uid = md5(post.path));
   return locals.posts.data.sort((a, b) => a.date - b.date);
 }
@@ -229,7 +229,7 @@ const loadPosts = (locals) => {
  * @param {*} issues 
  * @param {*} lastRecords 
  */
-const createPushIssues = (posts, issues, lastRecords) => {
+function createPushIssues(posts, issues, lastRecords) {
   let pushIssues = [];
   
   // filter out posts that don't need being updated
@@ -274,7 +274,7 @@ const createPushIssues = (posts, issues, lastRecords) => {
  * Create issue data object for the post need to be create or update.
  * @param {*} post 
  */
-const createIssueObject = post => {
+function createIssueObject(post) {
   // Add link to point the source post.
   let body = post._content;
   if (options.position && options.position == 'top') {
@@ -398,8 +398,28 @@ const generator = async function (locals) {
   }
 }
 
+// for test.
 if (process.env.NODE_ENV === "development") {
+  function _setInner({ log, githubApi, options}) {
+    log = log;
+    githubApi = githubApi;
+    options = options;
+  }
+  function _getAllConstants() {
+    return {
+      CREATE_ISSUE_INTERVAL,
+      ISSUE_DELETE_STATE,
+      ISSUE_EXIST_STATE,
+      ISSUE_META_KEY,
+      PER_PAGE_ISSUE,
+      TEMPLATE_DEFAULT,
+      PATH,
+      CONNECT_GITHUB_TIMEOUT,
+    }
+  }
   generator._inner = {
+    _setInner,
+    _getAllConstants,
     init,
     fetchAllIssues,
     loadRecords,
