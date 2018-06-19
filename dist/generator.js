@@ -1,243 +1,469 @@
-"use strict";
+'use strict';
 
 var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
-var GitHubApi = require("github");
-var github = void 0;
+/**
+ * Load all of the issues from the github repo.
+ */
+let fetchAllIssues = (() => {
+  var _ref = _asyncToGenerator(function* () {
+    log.i('Generator-Issues-Plugin: Fetching the issues in repository %s...', options.repos);
+    try {
+      let issues = yield githubApi.fetchAllIssues();
+      issues = issues.map(function (item) {
+        return {
+          title: item.title,
+          number: item.number,
+          state: item.state
+        };
+      }).sort(function (a, b) {
+        return a.number - b.number;
+      });
+      return issues;
+    } catch (err) {
+      log.e('Generator-Issues-Plugin: Fetch issues Failed!');
+      throw err;
+    }
+  });
 
-var createQueue = void 0;
-var updateQueue = void 0;
+  return function fetchAllIssues() {
+    return _ref.apply(this, arguments);
+  };
+})();
 
-var client = void 0;
-var repo = void 0;
+/**
+ * The task runner to push all issues to github.
+ * 1. first, update all issues need to be, when error occurs,it will ignore it.
+ * 2. Then, create all issues need to be, when error occurs,it will stop.
+ * @param {*} issueQueue 
+ */
+let pushAllIssues = (() => {
+  var _ref2 = _asyncToGenerator(function* (issueQueue) {
+    let taskLogs = {
+      success: {}
+    };
+    function saveLog(issue, number) {
+      taskLogs.success[issue.__id] = {
+        id: issue.__id,
+        number: issue.number || number,
+        path: issue.path,
+        title: issue.title
+      };
+    };
 
-var log = void 0;
-var option = {};
+    const updateIssueQueue = issueQueue.filter(function (issue) {
+      return issue.number;
+    });
+    const createIssueQueue = issueQueue.filter(function (issue) {
+      return !issue.number;
+    });
+    log.i(`Generator-Issues-Plugin: Begin push your posts to ${options.repos}...`);
+    log.i(`Generator-Issues-Plugin: The number to be updated is: ${updateIssueQueue.length}`);
+    log.i(`Generator-Issues-Plugin: The number to be created is: ${createIssueQueue.length}`);
 
-var CREATE_ISSUE_INTERVAL = 2000;
-var ISSUE_DELETE_STATE = "closed";
-var ISSUE_EXIST_STATE = "open";
-var ISSUE_META_KEY = 'issueNumber';
-var PER_PAGE_ISSUE = 100;
-var TEMPLATE_DEFAULT = '**The original: $$url.**';
+    // Update issues concurrently.
+    // when error occurs, stop create issues.
+    if (updateIssueQueue.length > 0) {
+      updateIssueQueue.forEach((() => {
+        var _ref3 = _asyncToGenerator(function* (issue) {
+          try {
+            const res = yield githubApi.push(issue);
+            saveLog(issue);
+            if (issue.state === ISSUE_DELETE_STATE) {
+              log.i(`Generator-Issues-Plugin: Success closed: [url: /${options.repos}/issues/${issue.number}] [title: ${issue.title || res.data.title}]`);
+            } else {
+              log.i(`Generator-Issues-Plugin: Success updated: [url: /${options.repos}/issues/${issue.number}] [title: ${issue.title || res.data.title}]`);
+            }
+          } catch (err) {
+            if (issue.state === ISSUE_DELETE_STATE) {
+              log.e(`Generator-Issues-Plugin: Fail closed: [url: /${options.repos}/issues/${issue.number}] [title: ${issue.title || res.data.title}]`);
+            } else {
+              log.e(`Generator-Issues-Plugin: Fail updated: [url: /${options.repos}/issues/${issue.number}] [title: ${issue.title || res.data.title}]`);
+            }
+          }
+        });
 
-module.exports = function (locals, finalCB) {
-  var hexo = this;
-  var config = hexo.config;
-  log = hexo.log;
-  var issuesOption = config.issues;
+        return function (_x2) {
+          return _ref3.apply(this, arguments);
+        };
+      })());
+    }
+
+    // Create issues serially.
+    // when error occurs, stop create issues.
+    if (createIssueQueue.length > 0) {
+      for (const issue of createIssueQueue) {
+        try {
+          const res = yield githubApi.push(issue);
+          log.i(`Generator-Issues-Plugin: Success to create issue [url: /${options.repos}/issues/${res.data.number}] [title: ${issue.title || response.data.title}]`);
+          saveLog(issue, res.data.number);
+          yield new Promise(function (resolve) {
+            setTimeout(resolve, CREATE_ISSUE_INTERVAL);
+          });
+        } catch (err) {
+          log.e(`Generator-Issues-Plugin: Fail to create issue [title: ${issue.title}]:`);
+          log.e(err);
+          log.e('Generator-Issues-Plugin: Stop push issues!');
+          return taskLogs;
+        }
+      }
+    }
+
+    log.i('Generator-Issues-Plugin: Push finish!');
+    return taskLogs;
+  });
+
+  return function pushAllIssues(_x) {
+    return _ref2.apply(this, arguments);
+  };
+})();
+
+// save push history to local file.
+// The history will reduce next push cost.
+let savePushLogs = (() => {
+  var _ref4 = _asyncToGenerator(function* (logs, lastRecords) {
+    log.i('Generator-Issues-Plugin: Saving push history...');
+    let records = {
+      success: Object.assign({}, lastRecords.success, logs.success),
+      updated: (0, _moment2.default)().format()
+    };
+
+    yield _hexoFs2.default.writeFile(PATH, JSON.stringify(records));
+    log.i('Generator-Issues-Plugin: Success saved push history.');
+  });
+
+  return function savePushLogs(_x3, _x4) {
+    return _ref4.apply(this, arguments);
+  };
+})();
+
+var _moment = require('moment');
+
+var _moment2 = _interopRequireDefault(_moment);
+
+var _hexoFs = require('hexo-fs');
+
+var _hexoFs2 = _interopRequireDefault(_hexoFs);
+
+var _rest = require('@octokit/rest');
+
+var _rest2 = _interopRequireDefault(_rest);
+
+var _md = require('md5');
+
+var _md2 = _interopRequireDefault(_md);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _asyncToGenerator(fn) { return function () { var gen = fn.apply(this, arguments); return new Promise(function (resolve, reject) { function step(key, arg) { try { var info = gen[key](arg); var value = info.value; } catch (error) { reject(error); return; } if (info.done) { resolve(value); } else { return Promise.resolve(value).then(function (value) { step("next", value); }, function (err) { step("throw", err); }); } } return step("next"); }); }; }
+
+const CREATE_ISSUE_INTERVAL = 2000;
+const ISSUE_DELETE_STATE = "closed";
+const ISSUE_EXIST_STATE = "open";
+const ISSUE_META_KEY = 'issueNumber';
+const PER_PAGE_ISSUE = 100;
+const TEMPLATE_DEFAULT = '**The original = $$url.**';
+const PATH = './_issue_generator_record';
+const CONNECT_GITHUB_TIMEOUT = 10000;
+
+let githubApi;
+let log = {};
+let options = {};
+
+/**
+ * init params.
+ * @param {any} ctx hexo
+ * @returns 
+ */
+const init = ctx => {
+  log = ctx.log;
+  const issuesOption = ctx.config.issues;
   if (!issuesOption || !issuesOption.repository || !issuesOption.auth) {
-    return;
+    let help = `
+      Generator-Issues-Plugin: The hexo-generate-issues plugins need auth and repository options.
+      Some of the options is not exist, so the plugin will not run.
+      For more help, you can check the docs: https://www.npmjs.com/package/hexo-generator-issues.
+    `;
+    log.w(help);
+    return false;
   }
-  option.repository = issuesOption.repository;
+
+  options.repository = issuesOption.repository;
+  options.auth = issuesOption.auth;
+  options.repos = `${options.repository.owner}/${options.repository.repo}`;
+
   if (issuesOption.sourceLink && issuesOption.sourceLink.position) {
     if (issuesOption.sourceLink.position == 'top' || issuesOption.sourceLink.position == 'bottom') {
-      option.position = issuesOption.sourceLink.position, option.template = issuesOption.sourceLink.template || TEMPLATE_DEFAULT;
+      options.position = issuesOption.sourceLink.position;
+      options.template = issuesOption.sourceLink.template || TEMPLATE_DEFAULT;
     }
   }
-  github = new GitHubApi({
+
+  // init github api
+  githubApi = getGithubApi(options);
+
+  return true;
+};
+
+/**
+ * github api tools
+ * @param {} options 
+ */
+function getGithubApi(options) {
+  const octokit = new _rest2.default({
     debug: false,
     protocol: "https",
     host: "api.github.com", // should be api.github.com for GitHub
     headers: {
       "user-agent": "hexo-igenerator-issue" // GitHub is happy with a unique user agent
     },
-    timeout: 5000
+    timeout: CONNECT_GITHUB_TIMEOUT,
+    Promise
   });
-  var auth = issuesOption.auth;
-  if (auth) {
-    github.authenticate(auth);
-  } else {
-    var help = ['The hexo-generate-issues plugins need authentication', 'The authentication config is empty, so it will not upload', 'For more help, you can check the docs: '];
-    log.i(help.join('\n'));
-    return;
-  }
 
-  createQueue = [];
-  updateQueue = [];
+  octokit.authenticate(options.auth);
 
-  run(locals, finalCB);
+  return {
+    /**
+     * get the page issues from github.
+     * @param {number} page
+     * @param {number} per_page
+     * @returns {Promise}
+     */
+    fetchIssues(page = 1, per_page = PER_PAGE_ISSUE) {
+      return octokit.issues.getForRepo(_extends({
+        page,
+        per_page,
+        state: 'all'
+      }, options.repository));
+    },
+    /**
+     * get all issues from github.
+     * @param {number} page
+     * @param {number} per_page
+     * @returns {array} data
+     */
+    fetchAllIssues() {
+      var _this = this;
+
+      return _asyncToGenerator(function* () {
+        const response = yield _this.fetchIssues();
+        const { data } = response;
+        while (octokit.hasNextPage(response)) {
+          response = yield octokit.getNextPage(response);
+          data = data.concat(response.data);
+        }
+        return data;
+      })();
+    },
+    /**
+     * push a issue to github.
+     * It use issue.number to decide whether to create or update a github issue.
+     * @param {*} issue object, create from createIssueObject function.
+     * @returns {Promise}
+     */
+    push(issue) {
+      let issueParams = _extends({}, issue, options.repository);
+      if (issue.number) {
+        return octokit.issues.edit(issueParams);
+      } else {
+        return octokit.issues.create(issueParams);
+      }
+    }
+  };
 };
 
-function run(locals, finalCB) {
-  var posts = getPosts(locals);
-  getIssues(function (issues) {
-    setTask(posts, issues);
-    log.i('Your posts will push to %s/%s issues...', option.repository.owner, option.repository.repo);
-    runTask(finalCB);
-  });
-}
-
-function getPosts(locals) {
-  var posts = locals.posts.data.sort(function (a, b) {
-    return a.date - b.date;
-  });
-  return posts;
-}
-
-function getIssues(cb) {
-  var issues = [];
-  var page = 1;
-  var _getIssues = function _getIssues() {
-    github.issues.getForRepo(_extends({
-      page: page,
-      per_page: PER_PAGE_ISSUE,
-      state: 'all'
-    }, option.repository), function (err, _issues) {
-      if (!err) {
-        if (_issues && _issues.data && _issues.data.length) {
-          issues = issues.concat(_issues.data.map(function (item) {
-            return {
-              title: item.title,
-              number: item.number
-            };
-          }));
-          page++;
-          _getIssues();
-        } else {
-          cb && cb(issues);
+/**
+ * if there isn't records, then use github issues to create the records.
+ * 
+ * @param {*} savedRecords 
+ * @param {*} posts 
+ * @param {*} issues 
+ */
+const initSavedRecords = (savedRecords, posts, issues) => {
+  let records = {};
+  Object.assign(records, savedRecords);
+  if (!records.success) {
+    records.success = {};
+    // issues.length > 0 则使用 issues 构建
+    if (issues.length > 0) {
+      let findCounts = 0;
+      for (let issue of issues) {
+        if (findCounts === posts.length) {
+          break;
         }
-      } else {
-        log.e('Can not get issues %s', err);
-      }
-    });
-  };
-  return _getIssues();
-}
 
-function setTask(posts, issues) {
-  var _loop = function _loop(index) {
-    var post = posts[index];
-    var issueNumber = post[ISSUE_META_KEY];
-    if (issueNumber == 0 || !post.title) {
-      return "continue";
-    }
+        let post = posts.find(aPost => issue.title == aPost.title);
 
-    // Add link to point the source post.
-    var body = post._content;
-    if (option.position && option.position == 'top') {
-      var url = option.template.replace(/\$\$url/g, "[" + post.title + "](" + post.permalink + ")");
-      body = url + "\n\n" + body;
-    } else if (option.position && option.position == 'bottom') {
-      var _url = option.template.replace(/\$\$url/g, "[" + post.title + "](" + post.permalink + ")");
-      body = body + "\n\n" + _url;
-    }
-    var _issue = {
-      title: post.title,
-      body: body,
-      labels: post.tags.map(function (item) {
-        return item.name;
-      }),
-      state: ISSUE_EXIST_STATE
-    };
-
-    // update issue use ISSUE_META_KEY == issue.number
-    if (!isNaN(issueNumber) && issueNumber > 0 && issueNumber <= issues.length) {
-      var issue = issues.find(function (item) {
-        return !item._isExist && item.number == issueNumber;
-      });
-
-      // update issue with issue.number == issueNumber.
-      if (issue) {
-        issue._isExist = true;
-        addTask(_issue, issue.number);
-
-        // The issueNumber has been used. update issue with issue.title == post.title.
-      } else {
-        issue = issues.find(function (item) {
-          return !item._isExist && item.title == post.title;
-        });
-
-        // update issue with issue.title == post.title.
-        if (issue) {
-          issue._isExist = true;
-          addTask(_issue, issue.number);
-
-          // create issue with post.
-        } else {
-          addTask(_issue);
+        if (post) {
+          records.success[post.__uid] = {
+            id: post.__uid,
+            number: issue.number,
+            title: post.title,
+            path: post.path
+          };
+          findCounts++;
         }
       }
-    } else {
-      var _issue2 = issues.find(function (item) {
-        return !item._isExist && item.title == post.title;
-      });
-
-      // update issue with issue.title == post.title.
-      if (_issue2) {
-        _issue2._isExist = true;
-        addTask(_issue, _issue2.number);
-
-        // create issue with post.
-      } else {
-        addTask(_issue);
-      }
     }
-  };
-
-  for (var index in posts) {
-    var _ret = _loop(index);
-
-    if (_ret === "continue") continue;
   }
 
-  // close the issues without having relation to a post.
-  issues.filter(function (item) {
-    return !item._isExist;
-  }).forEach(function (item) {
-    return addTask({ state: ISSUE_DELETE_STATE }, item.number);
+  if (!records.updated) {
+    records.updated = (0, _moment2.default)(0).format();
+  }
+
+  return records;
+};
+
+/**
+ * load last time generate history.
+ * if there are last time generate records, then just use it and do not check whether the records is valid or not.
+ * if there isn't records, then use github issues to create the records.
+ * 
+ * @param {*} posts 
+ * @param {*} issues 
+ */
+const loadRecords = (posts, issues) => _hexoFs2.default.exists(PATH).then(exist => {
+  if (!exist) return undefined;
+
+  return _hexoFs2.default.readFile(PATH).then(content => {
+    return !!content ? JSON.parse(content) : undefined;
   });
-}
+}).then(savedRecords => initSavedRecords(savedRecords, posts, issues));
 
-function runTask(finalCB) {
-  var currTaskIndex = 0;
+/**
+ * If the post need to be updated.
+ * @param {*} post 
+ * @param {*} lastRecords 
+ */
+const isPostNeedUpdate = (post, lastRecords) => post.__uid in lastRecords.success && (0, _moment2.default)(lastRecords.updated) < (0, _moment2.default)(post.updated);
 
-  // Update issues can directly publish.
-  updateQueue.forEach(function (func, index) {
-    if (createQueue.length == 0 && index === updateQueue.length - 1) {
-      func(finalCB);
-    } else {
-      func();
+/**
+ * If the post have created issus.
+ * @param {*} post 
+ * @param {*} lastRecords 
+ */
+const isPostNeedCreate = (post, lastRecords) => !(post.__uid in lastRecords.success);
+
+/**
+ * load posts, filter out the post that doesn't need update and sort the rest posts.
+ * @param {*} locals 
+ */
+const loadPosts = locals => {
+  locals.posts.data.forEach(post => post.__uid = (0, _md2.default)(post.path));
+  return locals.posts.data.sort((a, b) => a.date - b.date);
+};
+
+/**
+ * Create the create and update issues list with this three steps:
+ * 1. filter out posts that don't need being updated
+ * 2. add create and update issue.
+ * 3. find the alone issue without having relation to a post and state is equal to ISSUE_EXIST_STATE and close these issues.
+ * 
+ * @param {*} posts 
+ * @param {*} issues 
+ * @param {*} lastRecords 
+ */
+const createPushIssues = (posts, issues, lastRecords) => {
+  let pushIssues = [];
+
+  // filter out posts that don't need being updated
+  posts = posts.filter(post => {
+    return !!post.title && (isPostNeedUpdate(post, lastRecords) || isPostNeedCreate(post, lastRecords));
+  });
+
+  // add create and update post object
+  for (let post of posts) {
+    let _issue = createIssueObject(post);
+    if (isPostNeedUpdate(post, lastRecords)) {
+      let number = lastRecords.success[post.__uid].number;
+      let gitIssues = issues.find(issue => issue.number == number);
+      if (gitIssues) {
+        gitIssues._isExist = true;
+        _issue.number = number;
+      }
+    }
+    pushIssues.push(_issue);
+  }
+
+  // find the alone issue without having relation to a post and state is equal to ISSUE_EXIST_STATE.
+  // and close these issues.
+  for (let recordId in lastRecords.success) {
+    let record = lastRecords.success[recordId];
+    let gitIssue = issues[record.number - 1];
+    if (gitIssue && gitIssue.number == record.number) {
+      gitIssue._isExist = true;
+    }
+  }
+
+  issues.filter(issue => !issue._isExist && issue.state === ISSUE_EXIST_STATE).forEach(issue => pushIssues.push({ title: issue.title, state: ISSUE_DELETE_STATE, number: issue.number }));
+
+  return pushIssues;
+};
+
+/**
+ * Create issue data object for the post need to be create or update.
+ * @param {*} post 
+ */
+const createIssueObject = post => {
+  // Add link to point the source post.
+  let body = post._content;
+  if (options.position && options.position == 'top') {
+    let url = options.template.replace(/\$\$url/g, `[${post.title}](${post.permalink})`);
+    body = `${url}\n\n${body}`;
+  } else if (options.position && options.position == 'bottom') {
+    let url = options.template.replace(/\$\$url/g, `[${post.title}](${post.permalink})`);
+    body = `${body}\n\n${url}`;
+  }
+
+  return {
+    title: post.title,
+    body,
+    labels: post.tags.map(item => item.name),
+    state: ISSUE_EXIST_STATE,
+    __id: post.__uid,
+    path: post.path
+  };
+};;
+
+const generator = (() => {
+  var _ref5 = _asyncToGenerator(function* (locals) {
+    if (!init(this)) {
+      return {};
+    };
+
+    try {
+      const posts = loadPosts(locals);
+      const issues = yield fetchAllIssues();
+      const lastRecords = yield loadRecords(posts, issues);
+      const pushIssues = createPushIssues(posts, issues, lastRecords);
+      const pushLogs = yield pushAllIssues(pushIssues);
+      yield savePushLogs(pushLogs, lastRecords);
+      return {};
+    } catch (err) {
+      log.e('Generator-Issues-Plugin: ', err);
+      return {};
     }
   });
 
-  // Create issues rate be limited, so create one fo the issues per 2s.
-  var cb = function cb() {
-    currTaskIndex++;
-    currTaskIndex < createQueue.length && setTimeout(function () {
-      return createQueue[currTaskIndex](cb);
-    }, CREATE_ISSUE_INTERVAL);
-    currTaskIndex >= createQueue.length && finalCB && finalCB();
+  return function generator(_x5) {
+    return _ref5.apply(this, arguments);
   };
-  createQueue.length > 0 && createQueue[currTaskIndex](cb);
+})();
+
+if (process.env.NODE_ENV === "development") {
+  generator._inner = {
+    init,
+    fetchAllIssues,
+    loadRecords,
+    isPostNeedUpdate,
+    isPostNeedCreate,
+    loadPosts,
+    createPushIssues,
+    createIssueObject,
+    pushAllIssues,
+    savePushLogs
+  };
 }
 
-function addTask(issue, number) {
-  if (number) {
-    var _task = function _task(cb) {
-      github.issues.edit(_extends({
-        number: number
-      }, issue, option.repository), function (err, res) {
-        if (err) {
-          log.e('Update issue [url: /%s/%s/issues/%s] [title: %s] failed: %s', option.repository.owner, option.repository.repo, number, issue.title, err);
-        } else {
-          log.i('Success update issue [url: /%s/%s/issues/%s] [title: %s]', option.repository.owner, option.repository.repo, number, issue.title || res.data.title);
-        }
-        cb && cb();
-      });
-    };
-    updateQueue.push(_task);
-  } else {
-    var _task2 = function _task2(cb) {
-      github.issues.create(_extends({}, option.repository, issue), function (err, res) {
-        if (err) {
-          log.e('Create issue [title: %s] failed: %s', issue.title, err);
-        } else {
-          log.i('Success create issue [url: /%s/%s/issues/%s] [title: %s]', option.repository.owner, option.repository.repo, res.data.number, issue.title);
-        }
-        cb && cb();
-      });
-    };
-    createQueue.push(_task2);
-  }
-}
+module.exports = generator;
