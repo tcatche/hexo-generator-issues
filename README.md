@@ -1,92 +1,86 @@
 # hexo-generator-issues
 
-The Hexo plugin publish your posts to GitHub issues.  
+[中文文档](/README-zh.md)
 
-The plugin work on generate stage.When run `hexo g` or `hexo generate`, the issue will be published.  
+This plugin publishes articles to github specified repository, and each article as an issue.
 
-The posts and issue are associated with `post.title` to `issue.title`. If the post has not be published -- there is no issue has a same title with a post -- then will cerate a new issue using `post.title`, `post.tag` and `post._content`(post's markdown source content).If change the post content, the first issue has the same title will update. Otherwise, if a post be delete or reset title, the issue will be closed.  
-
-And you can use metadata `issueNumber` to point a post to a issue.
-
-(A completely new version is on beta, and it will be more reliability. [See more details and to try](https://github.com/tcatche/hexo-generator-issues/blob/develop/README.md)
-
-## Install
+## install
 
 ```
-npm install hexo-generator-issues --save
+npm install hexo-generator-issues@beta --save
 ```
 
-## Options
-You should add this configuration in `_config.yml`.
+## run
+
+The plugin takes effect in the process of executing `generate`, that is, when the` hexo g` or `hexo generate` is executed, the publish progress will execute.
+
+```js
+hexo generate 
+// or
+hexo g
+```
+
+After the release, the plugin will generate a `_issue_generator_record'` file in the blog directory. this file records the contents of the current release, please **do not delete this file**.
+this will ensure the next publish only publish the smallest changes, or the next publish will re-publish all the articles. This will cost a lot of time to publish your articles.
+
+## Configuration
+
+Add the following content in your configuration file (`_config.yml`):
 
 ```yml
 issues:
+  # github certification, when submit the issue used it
   auth:
-    # Auth type,More in https://github.com/mikedeboer/node-github#authentication
+    # Authentication type, more authentication information goto：https://github.com/mikedeboer/node-github#authentication
     type: 
-    # Auth from token
+    # Use token authentication to provide token
     token: 
-    # Auth from client keys
+    # Use client keys authentication to provide id and secret
     id:
     secret: 
-    # Auth from credentials
+    # Use credentials to provide username and password
     username:
     password:
-  repository:  # The issue repository. 
-    owner:  # `userName`
-    repo: # `repositoryName` 
+
+  # Provide a repository that needs to be placed issues
+  repository:
+    owner:  # github username
+    repo: # Specifies the repository under the user name, and the repository must exist
+
+  # In the issue to increase the original address of the blog reference, the corresponding address is post.permalink
   sourceLink: 
-    position: 'top' # `top` or `bottom` or `false` 
-    template: 'The original: $$url.**`. `$$url' # The default template is 'The original: $$url.**`. `$$url'
-  issueLink: # add issue link on the top or bottom of content.
-    position: 'bottom' # `top` or `bottom` or other as `false`
-    template: '**Have any question? go to github issue to discuss: $$url.**' # `$$url` is the link placeholder，is using markdown format `![post title](post url)`
+    # blog address information at the beginning (`top`, default) or end (` bottom`), 
+    # use other values ​​to ignore the configuration
+    position: 'top' 
+    # The original message format, the default is `The default template is 'The original: $$url.**`， 
+    # $$url`  is the placeholder for the url of the blog，corresponding to markdown： `[${post.title}](${post.permalink})`
+    template: 'The original: $$url.**`. `$$url' 
 ```
 
-- **auth** - Push issue need be authenticated. More auth info in [Node-github](https://github.com/mikedeboer/node-github#authentication). And the authentication alse need **have push access** to the repository. 
-- **repository** - The repository puts issues.Need **have push access**. The `repositoryName` must exist in `userName` account.
-  - **owner** - `userName`.
-  - **repo** - `repositoryName` 
-- **sourceLink** - This Option will add post link on the top or bottom of the issue. 
-  - **position** - Link postition. Allow `top` or `bottom`. set other value will not add post link to issue.
-  - **template** - Link style. Allow any markdown syntx, the default value is `**The original: $$url.**`. `$$url` is the link placeholder，will be replaced by markdown format `![post title](post url)`
-- **issueLink**  - This Option will add issue link on the top or bottom of the issue.it only work when a post has a `issueNumber`.Note it will not check the issue is exist or not.
-  - **position** - Link postition. Allow `top` or `bottom`.
-  - **template** - Link style. Allow any markdown syntx, the default value is `**Have any question? go to github issue to discuss: $$url.**` is the link placeholder，will be replaced by markdown format `![post title](issue url)`
+The original configuration `issueLink` is temporarily deleted and will be re-enabled in later version.
 
-In order to better management issue create and update, the post allow to add a new metadata field `issueNumber`.
+**Note**, the ~~issueNumber~~ metadata parameters are no longer effective, no longer work:
 
 ```
 ---
 title: The post's title
 ...
-issueNumber: 1
+issueNumber: 1 //this line no longer work
 ...
 ---
 ```
 
-This field be specified to connecting post to existing issue.If the value of this field corresponds to the issue does not exist, this field will be ignored. If the value is set `0`, the post will not publish as a issue.
-
 ## Test
-Before test, you should add option about authentication and test repository in `test/options.js` files.The authentication must has access in creating and delete repository.  
 
-```js
-var option = {
-  auth: {
-    // ..authInfo, details in https://github.com/mikedeboer/node-github#authentication
-  }, 
-  repository: {
-    owner: 'owner', // userName
-    repo: '__hexo-igenerator-issue-test'
-  }
-};
-```
+// todo 
 
-Then run `npm run test.`  
+## Problem
 
-## Note
+### Publish slow
 
-Create issues too fast you may see the error:
+> Requests that create content which triggers notifications, such as issues, comments and pull requests, may be further limited and will not include a Retry-After header in the response. Please create this content at a reasonable pace to avoid further limiting.
+
+Since the interface provided by github limits the rate when the issue was created (moew info see: [dealing-with-abuse-rate-limits] (https://developer.github.com/v3/guides/best-practices-for-integrators/ # dealing-with-abuse-rate-limits). So the time interval for creating the issue is set to 2000 ms, which results in a very slow execution of the task when create many issues, and may also occur as follows problem:
 
 ```
 HTTP/1.1 403 Forbidden
@@ -99,46 +93,22 @@ Connection: close
 }
 ```
 
-This is because github limit some of api's rate: [dealing-with-abuse-rate-limits](https://developer.github.com/v3/guides/best-practices-for-integrators/#dealing-with-abuse-rate-limits)
+In this case, you can re-execute the command at a later time.
 
-> Requests that create content which triggers notifications, such as issues, comments and pull requests, may be further limited and will not include a Retry-After header in the response. Please create this content at a reasonable pace to avoid further limiting.
+For more information, see: [https://github.com/octokit/octokit.net/issues/638] (https://github.com/octokit/octokit.net/issues/638)
 
-So, to aviding the error, the first time publish every posts have a 2s interval, thus it will take very long time. If failed, you can try it later. More details in [https://github.com/octokit/octokit.net/issues/638](https://github.com/octokit/octokit.net/issues/638)
+If necessary, you can modify the `CREATE_ISSUE_INTERVAL` release rate for the` node_modules/hexo-generator-issues/dist/generator` file.
 
-## Update Logs
-**2017-10-12**
+### More problem
 
-Rewrite the plugin, more details goto [https://github.com/tcatche/hexo-generator-issues/blob/develop/README.md](https://github.com/tcatche/hexo-generator-issues/blob/develop/README.md) to try.
+If there are other questions or feedback, please come to [tcatche/hexo-generator-issues](https://github.com/tcatche/hexo-generator-issues/issues).
 
-**The rewrite version is the beta version, which is not stable and should not be used in important repo.**
+## Update
 
-**2017-09-18**
+Rewrites a new version, optimizes the publishing logic, caches the history, and ensures that the next release is faster.
 
-Add issue link support.
-
-Fix publish issue errors.
-
-**2017-08-02**
-
-Add mocha test case.
-
-Change github lib.
-
-Fix sometimes will duplicated publish problem.
-
-**2017-08-01**
-
-Add support to ignore post when set `issueNumber` value to `0`.
-
-Add babel to transform the code.
-
-**2017-07-31**
-
-Add support to connecting post to existing issues with add post meta data `issueNumber`.
-
-**2017-07-28**
-
-Initialize the Repository.
+**The current version is the beta version, which is not stable. The issues on github can not be deleted,so you should not use it in any important repos.**
 
 ## License
+
 [MIT](./LICENSE)

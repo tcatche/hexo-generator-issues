@@ -1,20 +1,21 @@
 {
   "name": "hexo-generator-issues",
-  "version": "0.2.9",
+  "version": "1.0.5",
   "description": "publish your hexo posts to github issues.",
   "main": "index.js",
   "scripts": {
-    "test": "mocha -t 200000 test/generator.test.js --compilers js:babel-core/register",
     "build": "babel src -d dist",
-    "build:w": "babel src --watch -d dist"
+    "build:w": "babel src --watch -d dist",
+    "start": "npm run build:w"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/tcatche/hexo-generator-issues.git"
+    "url": "git+https://github.com/tcatche/hexo-generator-issues.git"
   },
   "keywords": [
     "hexo",
     "github",
+    "generator",
     "issue"
   ],
   "author": "tcatche",
@@ -24,13 +25,18 @@
   "homepage": "https://github.com/tcatche/hexo-generator-issues",
   "license": "MIT",
   "dependencies": {
-    "github": "^9.2.0"
+    "@octokit/rest": "^14.0.5",
+    "hexo-fs": "^0.2.2",
+    "md5": "^2.2.1",
+    "moment": "^2.18.1"
   },
   "devDependencies": {
     "babel-cli": "^6.24.1",
+    "babel-preset-env": "^1.6.0",
     "babel-preset-es2015": "^6.24.1",
     "babel-preset-stage-0": "^6.24.1",
     "chai": "^4.1.0",
+    "cross-env": "^5.0.5",
     "mocha": "^3.5.0"
   }
 }
