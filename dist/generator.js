@@ -175,7 +175,7 @@ let options = {};
  * @param {any} ctx hexo
  * @returns 
  */
-const init = ctx => {
+function init(ctx) {
   log = ctx.log;
   const issuesOption = ctx.config.issues;
   if (!issuesOption || !issuesOption.repository || !issuesOption.auth) {
@@ -203,7 +203,7 @@ const init = ctx => {
   githubApi = getGithubApi(options);
 
   return true;
-};
+}
 
 /**
  * github api tools
@@ -247,8 +247,8 @@ function getGithubApi(options) {
       var _this = this;
 
       return _asyncToGenerator(function* () {
-        const response = yield _this.fetchIssues();
-        const { data } = response;
+        let response = yield _this.fetchIssues();
+        let { data } = response;
         while (octokit.hasNextPage(response)) {
           response = yield octokit.getNextPage(response);
           data = data.concat(response.data);
@@ -280,7 +280,7 @@ function getGithubApi(options) {
  * @param {*} posts 
  * @param {*} issues 
  */
-const initSavedRecords = (savedRecords, posts, issues) => {
+function initSavedRecords(savedRecords, posts, issues) {
   let records = {};
   Object.assign(records, savedRecords);
   if (!records.success) {
@@ -313,7 +313,7 @@ const initSavedRecords = (savedRecords, posts, issues) => {
   }
 
   return records;
-};
+}
 
 /**
  * load last time generate history.
@@ -349,10 +349,10 @@ const isPostNeedCreate = (post, lastRecords) => !(post.__uid in lastRecords.succ
  * load posts, filter out the post that doesn't need update and sort the rest posts.
  * @param {*} locals 
  */
-const loadPosts = locals => {
+function loadPosts(locals) {
   locals.posts.data.forEach(post => post.__uid = (0, _md2.default)(post.path));
   return locals.posts.data.sort((a, b) => a.date - b.date);
-};
+}
 
 /**
  * Create the create and update issues list with this three steps:
@@ -364,7 +364,7 @@ const loadPosts = locals => {
  * @param {*} issues 
  * @param {*} lastRecords 
  */
-const createPushIssues = (posts, issues, lastRecords) => {
+function createPushIssues(posts, issues, lastRecords) {
   let pushIssues = [];
 
   // filter out posts that don't need being updated
@@ -399,13 +399,13 @@ const createPushIssues = (posts, issues, lastRecords) => {
   issues.filter(issue => !issue._isExist && issue.state === ISSUE_EXIST_STATE).forEach(issue => pushIssues.push({ title: issue.title, state: ISSUE_DELETE_STATE, number: issue.number }));
 
   return pushIssues;
-};
+}
 
 /**
  * Create issue data object for the post need to be create or update.
  * @param {*} post 
  */
-const createIssueObject = post => {
+function createIssueObject(post) {
   // Add link to point the source post.
   let body = post._content;
   if (options.position && options.position == 'top') {
@@ -451,8 +451,28 @@ const generator = (() => {
   };
 })();
 
+// for test.
 if (process.env.NODE_ENV === "development") {
+  function _setInner({ log, githubApi, options }) {
+    log = log;
+    githubApi = githubApi;
+    options = options;
+  }
+  function _getAllConstants() {
+    return {
+      CREATE_ISSUE_INTERVAL,
+      ISSUE_DELETE_STATE,
+      ISSUE_EXIST_STATE,
+      ISSUE_META_KEY,
+      PER_PAGE_ISSUE,
+      TEMPLATE_DEFAULT,
+      PATH,
+      CONNECT_GITHUB_TIMEOUT
+    };
+  }
   generator._inner = {
+    _setInner,
+    _getAllConstants,
     init,
     fetchAllIssues,
     loadRecords,

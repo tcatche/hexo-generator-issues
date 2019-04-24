@@ -91,8 +91,8 @@ function getGithubApi(options) {
      * @returns {array} data
      */
     async fetchAllIssues() {
-      const response = await this.fetchIssues();
-      const { data } = response;
+      let response = await this.fetchIssues();
+      let { data } = response;
       while (octokit.hasNextPage(response)) {
         response = await octokit.getNextPage(response);
         data = data.concat(response.data);
