@@ -12,15 +12,9 @@ npm install hexo-generator-issues@beta --save
 
 ## run
 
-The plugin takes effect in the process of executing `generate`, that is, when the` hexo g` or `hexo generate` is executed, the publish progress will execute.
+The plugin takes effect when executing `hexo generate` or `hexo g`. The plugin will compare local file and `posts.updated` and then generate `_issue_generator_data.json` file.
 
-```js
-hexo generate 
-// or
-hexo g
-```
-
-After the release, the plugin will generate a `_issue_generator_record'` file in the blog directory. this file records the contents of the current release, please **do not delete this file**.
+After executing `hexo deploy` or `hexo d`, the plugin will push `_issue_generator_data.json` content to github and then create a `_issue_generator_record.json` file in the blog directory. this file records the contents of the current release, please **do not delete this file**.
 this will ensure the next publish only publish the smallest changes, or the next publish will re-publish all the articles. This will cost a lot of time to publish your articles.
 
 ## Configuration
@@ -28,51 +22,30 @@ this will ensure the next publish only publish the smallest changes, or the next
 Add the following content in your configuration file (`_config.yml`):
 
 ```yml
-issues:
+deploy
+  - type: 'issues'
   # github certification, when submit the issue used it
-  auth:
-    # Authentication type, more authentication information goto：https://github.com/mikedeboer/node-github#authentication
-    type: 
-    # Use token authentication to provide token
-    token: 
-    # Use client keys authentication to provide id and secret
-    id:
-    secret: 
-    # Use credentials to provide username and password
-    username:
-    password:
-
-  # Provide a repository that needs to be placed issues
-  repository:
-    owner:  # github username
-    repo: # Specifies the repository under the user name, and the repository must exist
-
-  # In the issue to increase the original address of the blog reference, the corresponding address is post.permalink
-  sourceLink: 
-    # blog address information at the beginning (`top`, default) or end (` bottom`), 
-    # use other values ​​to ignore the configuration
-    position: 'top' 
-    # The original message format, the default is `The default template is 'The original: $$url.**`， 
-    # $$url`  is the placeholder for the url of the blog，corresponding to markdown： `[${post.title}](${post.permalink})`
-    template: 'The original: $$url.**`. `$$url' 
-```
-
-The original configuration `issueLink` is temporarily deleted and will be re-enabled in later version.
-
-**Note**, the ~~issueNumber~~ metadata parameters are no longer effective, no longer work:
-
-```
----
-title: The post's title
-...
-issueNumber: 1 //this line no longer work
-...
----
+    auth: '<github token>'
+    # Provide a repository that needs to be placed issues
+    repository:  # The issue repository.
+      owner: '<userName>'
+      repo: '<repositoryName>'
+    # In the issue to increase the original address of the blog reference, the corresponding address is post.permalink
+    sourceLink:
+      # blog address information at the beginning (`top`, default) or end (` bottom`),
+      # use other values ​​to ignore the configuration
+      position: '<top|bottom>' # `top` or `bottom` or other as `false`
+      # The original message format, the default is `The default template is 'The original: $$url.**`，
+      # $$url`  is the placeholder for the url of the blog，corresponding to markdown： `[${post.title}](${post.permalink})`
+      template: '**本文博客地址：$$url.**'
 ```
 
 ## Test
 
-// todo 
+```js
+npm run test:g // test issue generate
+npm run test:d // test issue deploy
+```
 
 ## Problem
 

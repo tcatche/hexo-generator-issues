@@ -1,6 +1,10 @@
 
 'use strict';
 
-hexo.extend.generator.register('issue', require('./dist/generator'));
+hexo.extend.generator.register('issues', async function(locals) {
+  require('./dist/generator')(this, locals);
+});
 
-// hexo.extend.filter.register('before_post_render', require('./dist/filter'));
+hexo.extend.deployer.register('issues', async function() {
+  require('./dist/deployer')(this);
+});

@@ -12,64 +12,38 @@ npm install hexo-generator-issues@beta --save
 
 ## 发布
 
-插件在执行 `generate` 的过程生效，也就是说，当执行 `hexo g` 或 `hexo generate`，发布将会执行。
+插件在执行 `hexo generate` or `hexo g` 时执行，必读本地文件和历史记录的发布日期，生成需要更新的文件内容到本地文件 `_issue_generator_data.json`。
 
-```js
-hexo generate 
-// or
-hexo g
-```
-
-发布后，将会在博客目录下生成 `_issue_generator_record'` 文件，文件记录了当前发布的内容，请**不要删除**，这个会保证下次发布仅发布最小的更改内容，否则下次发布将会重新发布所有的文章，从而导致发布速度较慢。
+当执行 `hexo d` 或 `hexo deploy`，会将本地的生成 `_issue_generator_data.json` 中的内容更新到 github。
+更新后，将会在博客目录下生成 `_issue_generator_record.json` 文件，文件记录了当前发布的内容，请**不要删除**，这个会保证下次发布仅发布最小的更改内容，否则下次发布将会重新发布所有的文章，从而导致发布速度较慢。
 
 ## 配置
 
 在配置文件中（`_config.yml`）添加以下内容：
 
 ```yml
-issues:
+deploy:
   # github 认证，提交 issue 的时候需要
-  auth:
-    # 认证类型，更多认证信息查看：https://github.com/mikedeboer/node-github#authentication
-    type: 
-    # 使用 token 认证需要提供 token
-    token: 
-    # 使用 client keys 认证需要提供 id 和 secret
-    id:
-    secret: 
-    # 使用 credentials 需要提供 username 和 password
-    username:
-    password:
-
-  # 提供需要放 issues 的仓库
-  repository:
-    owner:  # github 用户名
-    repo: # 指定用户名下的仓库，仓库必须存在
-
-  # 在 issue 中增加博客原文地址的引用，对应的地址是 post.permalink
-  sourceLink: 
-    position: 'top' # 博客地址信息放置在开头（`top`，默认）或者结束（`bottom`），使用其他值则忽略该项配置
-    # 原文信息的格式，默认为 `The default template is 'The original: $$url.**`， 
-    # 其中 `$$url` 是博客地址的 url 的占位符，对应于 markdown ： `[${post.title}](${post.permalink})`
-    template: 'The original: $$url.**`. `$$url' 
-```
-
-原有的配置项 `issueLink` 暂时删除，稍后版本将会重新启用。
-
-**注意**，之前提到的文章中的 ~~issueNumber~~ 元数据参数不再使生效，将不再起作用：
-
-```
----
-title: The post's title
-...
-issueNumber: 1 // 不再起作用
-...
----
+  - type: 'issues'
+    # github token 需要有编辑 issue 的权限
+    auth:
+    # 提供需要放 issues 的仓库
+    repository:
+      owner:  # github 用户名
+      repo: # 指定用户名下的仓库，仓库必须存在
+    # 在 issue 中增加博客原文地址的引用，对应的地址是 post.permalink
+    sourceLink:
+      position: 'top' # 博客地址信息放置在开头（`top`，默认）或者结束（`bottom`），使用其他值则忽略该项配置
+      # 原文信息的格式，默认为 `The default template is 'The original: $$url.**`，
+      # 其中 `$$url` 是博客地址的 url 的占位符，对应于 markdown ： `[${post.title}](${post.permalink})`
+      template: 'The original: $$url.**`. `$$url'
 ```
 
 ## 测试
-
-// todo 待补充 
+```js
+npm run test:g // 测试 issue 生成器
+npm run test:d // 测试 issue 部署
+```
 
 ## 问题
 
@@ -105,8 +79,6 @@ Connection: close
 如果有其他问题或者反馈，请到 [tcatche/hexo-generator-issues](https://github.com/tcatche/hexo-generator-issues/issues) 提出。
 
 ## 更新
-
-当前版本为重写的新版本，优化了发布逻辑，对历史记录进行了缓存，确保下次发布更加快速。
 
 **当前版本为测试版本，并不稳定，由于 Github 不支持删除issue，所以不要在重要的仓库下使用。**
 
