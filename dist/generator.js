@@ -10,8 +10,6 @@ var _classCallCheck2 = _interopRequireDefault(require("@babel/runtime/helpers/cl
 
 var _createClass2 = _interopRequireDefault(require("@babel/runtime/helpers/createClass"));
 
-var _moment = _interopRequireDefault(require("moment"));
-
 var _md = _interopRequireDefault(require("md5"));
 
 var _github = _interopRequireDefault(require("./github"));
@@ -133,7 +131,7 @@ var Generator = /*#__PURE__*/function () {
               case 2:
                 savedRecords = _context2.sent;
                 // if local not have generate record file, need rebuild.
-                updatedTime = (0, _moment["default"])(0).format();
+                updatedTime = new Date().toUTCString();
 
                 if (!(!savedRecords || !savedRecords.success)) {
                   _context2.next = 10;
@@ -162,7 +160,7 @@ var Generator = /*#__PURE__*/function () {
                         number: findedIssue.number,
                         title: postItem.title,
                         path: postItem.path,
-                        updated: updatedTime
+                        updated: findedIssue.updated_at || updatedTime
                       };
                     }
                   });
@@ -170,7 +168,7 @@ var Generator = /*#__PURE__*/function () {
 
               case 10:
                 if (!savedRecords.updated) {
-                  savedRecords.updated = updatedTime;
+                  savedRecords.updated = savedRecords.updated || updatedTime;
                 }
 
                 return _context2.abrupt("return", savedRecords);
@@ -219,7 +217,7 @@ var Generator = /*#__PURE__*/function () {
       var _this = this;
 
       var pushIssues = [];
-      var updatedTime = (0, _moment["default"])().format(); // filter out posts that need being updated or created.
+      var currentTime = new Date().toUTCString(); // filter out posts that need being updated or created.
 
       posts = posts.filter(function (post) {
         return !!post.title && ((0, _utils.isPostNeedUpdate)(post, lastRecords) || (0, _utils.isPostNeedCreate)(post, lastRecords));
@@ -230,7 +228,7 @@ var Generator = /*#__PURE__*/function () {
         var _issue = _this.createIssueObject(post);
 
         _issue.number = (_lastRecords$success$ = lastRecords.success[post.__uid]) === null || _lastRecords$success$ === void 0 ? void 0 : _lastRecords$success$.number;
-        _issue.updated = updatedTime;
+        _issue.updated = currentTime;
         pushIssues.push(_issue);
       });
       return pushIssues;
@@ -265,6 +263,7 @@ var Generator = /*#__PURE__*/function () {
           return item.name;
         }),
         state: ISSUE_EXIST_STATE,
+        _id: post._id,
         __id: post.__uid,
         path: post.path
       };
@@ -273,7 +272,7 @@ var Generator = /*#__PURE__*/function () {
     key: "run",
     value: function () {
       var _run = (0, _asyncToGenerator2["default"])( /*#__PURE__*/_regenerator["default"].mark(function _callee3() {
-        var posts, lastSavedRecords, pushIssues;
+        var posts, lastSavedRecords, pushIssues, createdCount, updateCount;
         return _regenerator["default"].wrap(function _callee3$(_context3) {
           while (1) {
             switch (_context3.prev = _context3.next) {
@@ -290,7 +289,13 @@ var Generator = /*#__PURE__*/function () {
 
               case 7:
                 if (pushIssues.length > 0) {
-                  this.log.i('[generator-issues]: Success generate %s issues need create or update.', pushIssues.length);
+                  createdCount = pushIssues.filter(function (item) {
+                    return !item.number;
+                  }).length;
+                  updateCount = pushIssues.filter(function (item) {
+                    return item.number;
+                  }).length;
+                  this.log.i('[generator-issues]: Success generate %s issues, need create %s and update %s.', pushIssues.length, createdCount, updateCount);
                   this.log.i('[generator-issues]: The saved issues will deploy when run "hexo d" or "hexo deploy".');
                 } else {
                   this.log.i('[generator-issues]: No issue need create or update.');

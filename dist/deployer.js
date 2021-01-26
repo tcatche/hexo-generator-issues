@@ -49,7 +49,6 @@ var Deployer = /*#__PURE__*/function () {
           path = issue.path,
           title = issue.title,
           updated = issue.updated;
-      console.log(updated);
       this.taskLogs.success[id] = {
         id: id,
         number: number,

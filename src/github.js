@@ -1,22 +1,45 @@
 import { Octokit } from "@octokit/rest";
+import { retry } from "@octokit/plugin-retry";
+import { throttling } from "@octokit/plugin-throttling";
 
-const PER_PAGE_ISSUE = 100;
-const CONNECT_GITHUB_TIMEOUT = 10000;
+const MyOctokit = Octokit.plugin(retry, throttling);
+const PER_PAGE_ISSUE = 50;
+const CONNECT_GITHUB_TIMEOUT = 15000;
 const CREATE_ISSUE_INTERVAL = 2000;
 
 export default class Github {
   constructor(options, logger) {
     this.options = options;
-    this.octokit = new Octokit({
-      debug: false,
+    this.octokit = new MyOctokit({
+      debug: true,
       auth: options.auth,
-      protocol: "https",
-      host: "api.github.com", // should be api.github.com for GitHub
-      headers: {
-        "user-agent": "hexo-igenerator-issue" // GitHub is happy with a unique user agent
+      baseUrl: 'https://api.github.com', // should be api.github.com for GitHub
+      userAgent: "hexo-igenerator-issue", // GitHub is happy with a unique user agent
+      request: {
+        timeout: CONNECT_GITHUB_TIMEOUT
       },
-      timeout: CONNECT_GITHUB_TIMEOUT,
-      Promise,
+      throttle: {
+        onRateLimit: (retryAfter, options) => {
+          myOctokit.log.warn(
+            `Request quota exhausted for request ${options.method} ${options.url}`
+          );
+
+          if (options.request.retryCount === 0) {
+            // only retries once
+            myOctokit.log.info(`Retrying after ${retryAfter} seconds!`);
+            return true;
+          }
+        },
+        onAbuseLimit: (retryAfter, options) => {
+          // does not retry, only logs a warning
+          myOctokit.log.warn(
+            `Abuse detected for request ${options.method} ${options.url}`
+          );
+        },
+      },
+      retry: {
+        doNotRetry: ["429"],
+      },
     });
     this.logger = logger;
   }
@@ -28,11 +51,13 @@ export default class Github {
    * @returns {Promise}
    */
   fetchIssuesByPage(page = 1, per_page = PER_PAGE_ISSUE) {
+    const { owner, repo } = this.options.repository;
     return this.octokit.issues.listForRepo({
       page,
       per_page,
+      owner,
+      repo,
       state: 'all',
-      ...this.options.repository,
     });
   }
 
@@ -49,7 +74,7 @@ export default class Github {
     let currentPage = 1;
     let response = await this.fetchIssuesByPage(currentPage);
     let { data } = response;
-    while(data.length === PER_PAGE_ISSUE) {
+    while(data.length === PER_PAGE_ISSUE * currentPage) {
       currentPage += 1;
       response = await this.fetchIssuesByPage(currentPage);
       data = data.concat(response.data);
@@ -71,8 +96,10 @@ export default class Github {
       issue_number: issue.number,
     };
     if (issue.number) {
+      // return this.octokit.issues.update(issueParams);
       return this.octokit.issues.update(issueParams);
     } else {
+      // return this.octokit.issues.create(issueParams);
       return this.octokit.issues.create(issueParams);
     }
   }

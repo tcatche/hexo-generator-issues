@@ -1,4 +1,3 @@
-import moment from 'moment';
 import fs from 'hexo-fs';
 
 const ISSUE_UPDATE_RECORDS_PATH = './_issue_generator_record.json';
@@ -11,8 +10,7 @@ const ISSUE_GENERATOR_PATH = './_issue_generator_data.json';
  */
 export const isPostNeedUpdate = (post, lastPushedRecords) => {
   const isPostSaved = post.__uid in lastPushedRecords.success;
-  const isUpdate = isPostSaved && (moment(lastPushedRecords.success[post.__uid].updated || lastPushedRecords.updated) < moment(post.updated));
-  console.log(post.__uid, lastPushedRecords.success[post.__uid], lastPushedRecords.success[post.__uid].updated, post.updated, isPostSaved && isUpdate)
+  const isUpdate = isPostSaved && (new Date(lastPushedRecords.success[post.__uid].updated || lastPushedRecords.updated) < new Date(post.updated));
   return isPostSaved && isUpdate;
 }
 
@@ -45,7 +43,7 @@ export const checkOptions = (issuesOption) => {
  * Save the post issues need to be create or updated on github
  */
 export const saveWillPushedIssues = (pushData) => {
-  return fs.writeFile(ISSUE_GENERATOR_PATH, JSON.stringify(pushData));
+  return fs.writeFile(ISSUE_GENERATOR_PATH, pushData ? JSON.stringify(pushData) : '');
 }
 
 /**
@@ -83,11 +81,18 @@ export const loadSavedPushHistory = async () => {
  * @param {*} logs
  */
 export const savePushHistory = async (logs) => {
-  const lastSavedHistory = await loadSavedPushHistory;
+  const lastSavedHistory = await loadSavedPushHistory();
   let records = {
     success: Object.assign({}, lastSavedHistory.success, logs.success),
-    updated: moment().format()
   }
 
+  Object.values(records.success).forEach(record => {
+    if (!record.updated) {
+      record.updated = lastSavedHistory.updated;
+    }
+  });
+
   await fs.writeFile(ISSUE_UPDATE_RECORDS_PATH, JSON.stringify(records));
+  // clear will push issues
+  await saveWillPushedIssues();
 }

@@ -1,4 +1,3 @@
-import moment from 'moment';
 import md5 from 'md5';
 import Github from './github';
 import {
@@ -74,7 +73,7 @@ class Generator {
     let savedRecords = await loadSavedPushHistory();
 
     // if local not have generate record file, need rebuild.
-    const updatedTime = moment(0).format();
+    const updatedTime = new Date().toUTCString();
     if (!savedRecords || !savedRecords.success) {
       savedRecords = {
         success: {},
@@ -90,7 +89,7 @@ class Generator {
               number: findedIssue.number,
               title: postItem.title,
               path: postItem.path,
-              updated: updatedTime,
+              updated: findedIssue.updated_at || updatedTime,
             }
           }
         });
@@ -98,7 +97,7 @@ class Generator {
     }
 
     if (!savedRecords.updated) {
-      savedRecords.updated = updatedTime;
+      savedRecords.updated = savedRecords.updated || updatedTime;
     }
 
     return savedRecords;
@@ -123,7 +122,7 @@ class Generator {
    */
   createPushIssues(posts, lastRecords) {
     let pushIssues = [];
-    const updatedTime = moment().format();
+    const currentTime = new Date().toUTCString();
 
     // filter out posts that need being updated or created.
     posts = posts.filter(
@@ -134,7 +133,7 @@ class Generator {
       // add create and update post object
       let _issue = this.createIssueObject(post);
       _issue.number = lastRecords.success[post.__uid]?.number;
-      _issue.updated = updatedTime;
+      _issue.updated = currentTime;
       pushIssues.push(_issue);
     });
 
@@ -162,6 +161,7 @@ class Generator {
       body,
       labels: (post.tags || []).map(item => item.name),
       state: ISSUE_EXIST_STATE,
+      _id: post._id,
       __id: post.__uid,
       path: post.path,
     };
@@ -173,7 +173,9 @@ class Generator {
     const pushIssues = this.createPushIssues(posts, lastSavedRecords);
     await saveWillPushedIssues(pushIssues);
     if (pushIssues.length > 0) {
-      this.log.i('[generator-issues]: Success generate %s issues need create or update.', pushIssues.length);
+      const createdCount = pushIssues.filter(item => !item.number).length;
+      const updateCount = pushIssues.filter(item => item.number).length;
+      this.log.i('[generator-issues]: Success generate %s issues, need create %s and update %s.', pushIssues.length, createdCount, updateCount);
       this.log.i('[generator-issues]: The saved issues will deploy when run "hexo d" or "hexo deploy".');
     } else {
       this.log.i('[generator-issues]: No issue need create or update.');

@@ -7,17 +7,21 @@ Object.defineProperty(exports, "__esModule", {
 });
 exports["default"] = void 0;
 
+var _defineProperty2 = _interopRequireDefault(require("@babel/runtime/helpers/defineProperty"));
+
 var _regenerator = _interopRequireDefault(require("@babel/runtime/regenerator"));
 
 var _asyncToGenerator2 = _interopRequireDefault(require("@babel/runtime/helpers/asyncToGenerator"));
-
-var _defineProperty2 = _interopRequireDefault(require("@babel/runtime/helpers/defineProperty"));
 
 var _classCallCheck2 = _interopRequireDefault(require("@babel/runtime/helpers/classCallCheck"));
 
 var _createClass2 = _interopRequireDefault(require("@babel/runtime/helpers/createClass"));
 
 var _rest = require("@octokit/rest");
+
+var _pluginRetry = require("@octokit/plugin-retry");
+
+var _pluginThrottling = require("@octokit/plugin-throttling");
 
 function _createForOfIteratorHelper(o, allowArrayLike) { var it; if (typeof Symbol === "undefined" || o[Symbol.iterator] == null) { if (Array.isArray(o) || (it = _unsupportedIterableToArray(o)) || allowArrayLike && o && typeof o.length === "number") { if (it) o = it; var i = 0; var F = function F() {}; return { s: F, n: function n() { if (i >= o.length) return { done: true }; return { done: false, value: o[i++] }; }, e: function e(_e) { throw _e; }, f: F }; } throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); } var normalCompletion = true, didErr = false, err; return { s: function s() { it = o[Symbol.iterator](); }, n: function n() { var step = it.next(); normalCompletion = step.done; return step; }, e: function e(_e2) { didErr = true; err = _e2; }, f: function f() { try { if (!normalCompletion && it["return"] != null) it["return"](); } finally { if (didErr) throw err; } } }; }
 
@@ -29,26 +33,44 @@ function ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (O
 
 function _objectSpread(target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i] != null ? arguments[i] : {}; if (i % 2) { ownKeys(Object(source), true).forEach(function (key) { (0, _defineProperty2["default"])(target, key, source[key]); }); } else if (Object.getOwnPropertyDescriptors) { Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)); } else { ownKeys(Object(source)).forEach(function (key) { Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key)); }); } } return target; }
 
-var PER_PAGE_ISSUE = 100;
-var CONNECT_GITHUB_TIMEOUT = 10000;
+var MyOctokit = _rest.Octokit.plugin(_pluginRetry.retry, _pluginThrottling.throttling);
+
+var PER_PAGE_ISSUE = 50;
+var CONNECT_GITHUB_TIMEOUT = 15000;
 var CREATE_ISSUE_INTERVAL = 2000;
 
 var Github = /*#__PURE__*/function () {
   function Github(options, logger) {
     (0, _classCallCheck2["default"])(this, Github);
     this.options = options;
-    this.octokit = new _rest.Octokit({
-      debug: false,
+    this.octokit = new MyOctokit({
+      debug: true,
       auth: options.auth,
-      protocol: "https",
-      host: "api.github.com",
+      baseUrl: 'https://api.github.com',
       // should be api.github.com for GitHub
-      headers: {
-        "user-agent": "hexo-igenerator-issue" // GitHub is happy with a unique user agent
-
+      userAgent: "hexo-igenerator-issue",
+      // GitHub is happy with a unique user agent
+      request: {
+        timeout: CONNECT_GITHUB_TIMEOUT
       },
-      timeout: CONNECT_GITHUB_TIMEOUT,
-      Promise: Promise
+      throttle: {
+        onRateLimit: function onRateLimit(retryAfter, options) {
+          myOctokit.log.warn("Request quota exhausted for request ".concat(options.method, " ").concat(options.url));
+
+          if (options.request.retryCount === 0) {
+            // only retries once
+            myOctokit.log.info("Retrying after ".concat(retryAfter, " seconds!"));
+            return true;
+          }
+        },
+        onAbuseLimit: function onAbuseLimit(retryAfter, options) {
+          // does not retry, only logs a warning
+          myOctokit.log.warn("Abuse detected for request ".concat(options.method, " ").concat(options.url));
+        }
+      },
+      retry: {
+        doNotRetry: ["429"]
+      }
     });
     this.logger = logger;
   }
@@ -65,11 +87,16 @@ var Github = /*#__PURE__*/function () {
     value: function fetchIssuesByPage() {
       var page = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 1;
       var per_page = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : PER_PAGE_ISSUE;
-      return this.octokit.issues.listForRepo(_objectSpread({
+      var _this$options$reposit = this.options.repository,
+          owner = _this$options$reposit.owner,
+          repo = _this$options$reposit.repo;
+      return this.octokit.issues.listForRepo({
         page: page,
         per_page: per_page,
+        owner: owner,
+        repo: repo,
         state: 'all'
-      }, this.options.repository));
+      });
     }
     /**
      * get all issues from github.
@@ -105,7 +132,7 @@ var Github = /*#__PURE__*/function () {
                 _response = response, data = _response.data;
 
               case 7:
-                if (!(data.length === PER_PAGE_ISSUE)) {
+                if (!(data.length === PER_PAGE_ISSUE * currentPage)) {
                   _context.next = 15;
                   break;
                 }
@@ -153,8 +180,10 @@ var Github = /*#__PURE__*/function () {
       });
 
       if (issue.number) {
+        // return this.octokit.issues.update(issueParams);
         return this.octokit.issues.update(issueParams);
       } else {
+        // return this.octokit.issues.create(issueParams);
         return this.octokit.issues.create(issueParams);
       }
     }

@@ -11,8 +11,6 @@ var _regenerator = _interopRequireDefault(require("@babel/runtime/regenerator"))
 
 var _asyncToGenerator2 = _interopRequireDefault(require("@babel/runtime/helpers/asyncToGenerator"));
 
-var _moment = _interopRequireDefault(require("moment"));
-
 var _hexoFs = _interopRequireDefault(require("hexo-fs"));
 
 var ISSUE_UPDATE_RECORDS_PATH = './_issue_generator_record.json';
@@ -25,8 +23,7 @@ var ISSUE_GENERATOR_PATH = './_issue_generator_data.json';
 
 var isPostNeedUpdate = function isPostNeedUpdate(post, lastPushedRecords) {
   var isPostSaved = (post.__uid in lastPushedRecords.success);
-  var isUpdate = isPostSaved && (0, _moment["default"])(lastPushedRecords.success[post.__uid].updated || lastPushedRecords.updated) < (0, _moment["default"])(post.updated);
-  console.log(post.__uid, lastPushedRecords.success[post.__uid], lastPushedRecords.success[post.__uid].updated, post.updated, isPostSaved && isUpdate);
+  var isUpdate = isPostSaved && new Date(lastPushedRecords.success[post.__uid].updated || lastPushedRecords.updated) < new Date(post.updated);
   return isPostSaved && isUpdate;
 };
 /**
@@ -57,7 +54,7 @@ var checkOptions = function checkOptions(issuesOption) {
 exports.checkOptions = checkOptions;
 
 var saveWillPushedIssues = function saveWillPushedIssues(pushData) {
-  return _hexoFs["default"].writeFile(ISSUE_GENERATOR_PATH, JSON.stringify(pushData));
+  return _hexoFs["default"].writeFile(ISSUE_GENERATOR_PATH, pushData ? JSON.stringify(pushData) : '');
 };
 /**
  * load the post issues need to be create or updated on github
@@ -183,18 +180,26 @@ var savePushHistory = /*#__PURE__*/function () {
         switch (_context3.prev = _context3.next) {
           case 0:
             _context3.next = 2;
-            return loadSavedPushHistory;
+            return loadSavedPushHistory();
 
           case 2:
             lastSavedHistory = _context3.sent;
             records = {
-              success: Object.assign({}, lastSavedHistory.success, logs.success),
-              updated: (0, _moment["default"])().format()
+              success: Object.assign({}, lastSavedHistory.success, logs.success)
             };
-            _context3.next = 6;
+            Object.values(records.success).forEach(function (record) {
+              if (!record.updated) {
+                record.updated = lastSavedHistory.updated;
+              }
+            });
+            _context3.next = 7;
             return _hexoFs["default"].writeFile(ISSUE_UPDATE_RECORDS_PATH, JSON.stringify(records));
 
-          case 6:
+          case 7:
+            _context3.next = 9;
+            return saveWillPushedIssues();
+
+          case 9:
           case "end":
             return _context3.stop();
         }

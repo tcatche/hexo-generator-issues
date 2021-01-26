@@ -22,8 +22,7 @@ class Deployer {
   }
 
   saveLog(issue) {
-    const { __id: id, number, path, title, updated} = issue;
-    console.log(updated)
+    const { __id: id, number, path, title, updated, } = issue;
     this.taskLogs.success[id] = {
       id,
       number,
