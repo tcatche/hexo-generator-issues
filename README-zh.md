@@ -7,7 +7,7 @@
 ## 安装
 
 ```
-npm install hexo-generator-issues@beta --save
+npm install hexo-generator-issues --save
 ```
 
 ## 发布
@@ -77,10 +77,6 @@ Connection: close
 ### 更多问题
 
 如果有其他问题或者反馈，请到 [tcatche/hexo-generator-issues](https://github.com/tcatche/hexo-generator-issues/issues) 提出。
-
-## 更新
-
-**当前版本为测试版本，并不稳定，由于 Github 不支持删除issue，所以不要在重要的仓库下使用。**
 
 ## 许可
 

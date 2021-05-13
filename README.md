@@ -7,7 +7,7 @@ This plugin publishes articles to github specified repository, and each article 
 ## install
 
 ```
-npm install hexo-generator-issues@beta --save
+npm install hexo-generator-issues --save
 ```
 
 ## run
@@ -76,11 +76,6 @@ If necessary, you can modify the `CREATE_ISSUE_INTERVAL` release rate for the` n
 
 If there are other questions or feedback, please come to [tcatche/hexo-generator-issues](https://github.com/tcatche/hexo-generator-issues/issues).
 
-## Update
-
-Rewrites a new version, optimizes the publishing logic, caches the history, and ensures that the next release is faster.
-
-**The current version is the beta version, which is not stable. The issues on github can not be deleted,so you should not use it in any important repos.**
 
 ## License
 
