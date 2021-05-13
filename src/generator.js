@@ -176,6 +176,9 @@ class Generator {
       const createdCount = pushIssues.filter(item => !item.number).length;
       const updateCount = pushIssues.filter(item => item.number).length;
       this.log.i('[generator-issues]: Success generate %s issues, need create %s and update %s.', pushIssues.length, createdCount, updateCount);
+      pushIssues.forEach(item => {
+        this.log.i('[generator-issues]: %s [%s]', item.number ? 'Update' : 'Create', item.title);
+      });
       this.log.i('[generator-issues]: The saved issues will deploy when run "hexo d" or "hexo deploy".');
     } else {
       this.log.i('[generator-issues]: No issue need create or update.');

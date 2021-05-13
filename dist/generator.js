@@ -272,6 +272,8 @@ var Generator = /*#__PURE__*/function () {
     key: "run",
     value: function () {
       var _run = (0, _asyncToGenerator2["default"])( /*#__PURE__*/_regenerator["default"].mark(function _callee3() {
+        var _this2 = this;
+
         var posts, lastSavedRecords, pushIssues, createdCount, updateCount;
         return _regenerator["default"].wrap(function _callee3$(_context3) {
           while (1) {
@@ -296,6 +298,9 @@ var Generator = /*#__PURE__*/function () {
                     return item.number;
                   }).length;
                   this.log.i('[generator-issues]: Success generate %s issues, need create %s and update %s.', pushIssues.length, createdCount, updateCount);
+                  pushIssues.forEach(function (item) {
+                    _this2.log.i('[generator-issues]: %s [%s]', item.number ? 'Update' : 'Create', item.title);
+                  });
                   this.log.i('[generator-issues]: The saved issues will deploy when run "hexo d" or "hexo deploy".');
                 } else {
                   this.log.i('[generator-issues]: No issue need create or update.');
