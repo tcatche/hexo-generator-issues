@@ -1,6 +1,6 @@
 {
   "name": "hexo-generator-issues",
-  "version": "2.0.4",
+  "version": "2.0.5",
   "description": "publish your hexo posts to github issues.",
   "main": "index.js",
   "scripts": {
@@ -27,6 +27,7 @@
   "homepage": "https://github.com/tcatche/hexo-generator-issues",
   "license": "MIT",
   "dependencies": {
+    "@babel/runtime": "^7.14.0",
     "@octokit/plugin-retry": "^3.0.7",
     "@octokit/plugin-throttling": "^3.4.1",
     "@octokit/rest": "^18.0.15",
